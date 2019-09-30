@@ -59,7 +59,7 @@ impl<'a> TacGen<'a> {
           } else {
             FuncNameKind::Member { class: c.name, func: fu.name }
           }, self.reg_cnt, fu.ret_ty() != Ty::void());
-          self.block(&fu.body, &mut f);
+          self.block(fu.body.as_ref().unwrap(), &mut f);
           f.max_reg = self.reg_cnt;
           // add an return at the end of return-void function
           if fu.ret_ty() == Ty::void() {

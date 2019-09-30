@@ -25,9 +25,9 @@ impl<'a> TypePass<'a> {
     self.scoped(ScopeOwner::Class(c), |s| for f in &c.field {
       if let FieldDef::FuncDef(f) = f {
         s.cur_func = Some(f);
-        let t = s.scoped(ScopeOwner::Param(f), |s| s.block(&f.body));
+        let t = s.scoped(ScopeOwner::Param(f), |s| s.block(f.body.as_ref().unwrap()));
         if !t && f.ret_ty() != Ty::void() {
-          s.errors.issue(f.body.loc, ErrorKind::NoReturn)
+          s.errors.issue(f.body.as_ref().unwrap().loc, ErrorKind::NoReturn)
         }
       };
     });
