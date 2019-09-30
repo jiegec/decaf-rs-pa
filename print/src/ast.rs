@@ -1,6 +1,7 @@
 use common::{IndentPrinter, IgnoreResult};
 use syntax::*;
 use std::fmt::Write;
+use either::{Either, Left, Right};
 
 pub fn program(pr: &Program, p: &mut IndentPrinter) { pr.print(p); }
 
@@ -32,6 +33,15 @@ impl<T: Printable> Printable for Option<T> {
   }
 }
 
+impl<L: Printable, R: Printable> Printable for Either<L, R> {
+  fn print(&self, p: &mut IndentPrinter) {
+    match self {
+      Left(l) => l.print(p),
+      Right(r) => r.print(p),
+    }
+  }
+}
+
 impl<T: Printable> Printable for Box<T> {
   fn print(&self, p: &mut IndentPrinter) { self.as_ref().print(p); }
 }
@@ -52,6 +62,12 @@ impl Printable for SynTy<'_> {
       SynTyKind::String => write!(p, "TString @ {:?}", self.loc).ignore(),
       SynTyKind::Void => write!(p, "TVoid @ {:?}", self.loc).ignore(),
       SynTyKind::Var => write!(p, "<none>").ignore(),
+      SynTyKind::Function => {
+        write!(p, "TLambda @ {:?}", self.loc).ignore();
+        let function_type = self.function_type.as_ref().unwrap();
+        p.indent(|p| function_type.0.print(p));
+        p.indent(|p| function_type.1.print(p));
+      },
       SynTyKind::Named(c) => {
         write!(p, "TClass @ {:?}", self.loc).ignore();
         p.indent(|p| c.print(p));
@@ -149,7 +165,7 @@ impl Printable for Expr<'_> {
       VarSel => x.owner x.name, IndexSel => x.arr x.idx, IntLit => x, BoolLit => x, StringLit => "\"".to_owned() + x + "\"",
       NullLit => , Call => x.func x.arg, Unary => x.op.to_word_str() x.r, Binary => x.op.to_word_str() x.l x.r,
       This => , ReadInt => , ReadLine => , NewClass => x.name, NewArray => x.elem x.len, ClassTest => x.expr x.name,
-      ClassCast => x.expr x.name
+      ClassCast => x.expr x.name, Lambda => x.param x.body
     );
   }
 }

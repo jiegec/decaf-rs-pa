@@ -10,3 +10,4 @@ common = { path = "../common" }
 tac = { path = "../tac" }
 tacopt = { path = "../tacopt" }
 codegen = { path = "../codegen" }
+either = "1.5"

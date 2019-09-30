@@ -351,6 +351,7 @@ impl<'a> TacGen<'a> {
         f.push(Label { label: ok });
         obj
       }
+      Lambda(_) => unimplemented!(),
     }
   }
 }

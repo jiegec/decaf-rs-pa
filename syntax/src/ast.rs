@@ -2,6 +2,7 @@ use crate::{ty::*, symbol::*};
 use common::{Loc, Ref, BinOp, UnOp};
 use typed_arena::Arena;
 use std::cell::{Cell, RefCell};
+use either::Either;
 
 #[derive(Default)]
 pub struct ASTAlloc<'a> {
@@ -176,6 +177,7 @@ pub enum ExprKind<'a> {
   NewArray(NewArray<'a>),
   ClassTest(ClassTest<'a>),
   ClassCast(ClassCast<'a>),
+  Lambda(Lambda<'a>),
 }
 
 pub struct VarSel<'a> {
@@ -242,3 +244,8 @@ pub struct This;
 pub struct ReadInt;
 
 pub struct ReadLine;
+
+pub struct Lambda<'a> {
+  pub param: Vec<&'a VarDef<'a>>,
+  pub body: Either<Box<Expr<'a>>, Box<Block<'a>>>,
+}

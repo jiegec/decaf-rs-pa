@@ -196,6 +196,7 @@ impl<'a> TypePass<'a> {
           None => self.errors.issue(e.loc, NoSuchClass(c.name)),
         }
       }
+      Lambda(_) => unimplemented!(),
     };
     e.ty.set(ty);
     ty
