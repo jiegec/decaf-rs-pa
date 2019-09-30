@@ -64,6 +64,7 @@ priority = [
 'int' = 'Int'
 'bool' = 'Bool'
 'string' = 'String'
+'var' = 'Var'
 'new' = 'New'
 'null' = 'Null'
 'true' = 'True'
@@ -224,6 +225,12 @@ impl<'p> Parser<'p> {
   #[rule(Simple -> Type Id Assign Expr)] // the VarDef with init
   fn simple_var_def_init(&self, syn_ty: SynTy<'p>, name: Token, a: Token, init: Expr<'p>) -> Stmt<'p> {
     let loc = name.loc();
+    mk_stmt(loc, (&*self.alloc.var.alloc(VarDef { loc, name: name.str(), syn_ty, init: Some((a.loc(), init)), ty: dft(), owner: dft() })).into())
+  }
+  #[rule(Simple -> Var Id Assign Expr)] // the VarDef with init
+  fn simple_var_def_init_var(&self, var: Token, name: Token, a: Token, init: Expr<'p>) -> Stmt<'p> {
+    let loc = name.loc();
+    let syn_ty = SynTy { loc: var.loc(), arr: 0, kind: SynTyKind::Var };
     mk_stmt(loc, (&*self.alloc.var.alloc(VarDef { loc, name: name.str(), syn_ty, init: Some((a.loc(), init)), ty: dft(), owner: dft() })).into())
   }
   #[rule(Simple -> Expr)]

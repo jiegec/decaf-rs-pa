@@ -51,6 +51,7 @@ impl Printable for SynTy<'_> {
       SynTyKind::Bool => write!(p, "TBool @ {:?}", self.loc).ignore(),
       SynTyKind::String => write!(p, "TString @ {:?}", self.loc).ignore(),
       SynTyKind::Void => write!(p, "TVoid @ {:?}", self.loc).ignore(),
+      SynTyKind::Var => write!(p, "<none>").ignore(),
       SynTyKind::Named(c) => {
         write!(p, "TClass @ {:?}", self.loc).ignore();
         p.indent(|p| c.print(p));

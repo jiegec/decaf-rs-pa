@@ -9,6 +9,7 @@ pub enum SynTyKind<'a> {
   String,
   Void,
   Named(&'a str),
+  Var,
 }
 
 #[derive(Eq, PartialEq)]
