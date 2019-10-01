@@ -45,7 +45,6 @@ fn mk_bin<'p>(l: Expr<'p>, r: Expr<'p>, loc: Loc, op: BinOp) -> Expr<'p> {
 }
 
 #[lalr1(Program)]
-#[log_token]
 #[lex(r##"
 priority = [
   { assoc = 'right', terms = ['Rocket'] },
@@ -245,9 +244,10 @@ impl<'p> Parser<'p> {
 
   #[rule(Expr -> LValue)]
   fn expr_lvalue(l: Expr<'p>) -> Expr<'p> { l }
-  #[rule(Expr -> VarSel LPar ExprListOrEmpty RPar)]
-  fn expr_call(func: Expr<'p>, l: Token, arg: Vec<Expr<'p>>, _r: Token) -> Expr<'p> {
-    mk_expr(l.loc(), Call { func: Box::new(func), arg, func_ref: dft() }.into())
+  #[rule(Expr -> Expr LPar ExprListOrEmpty RPar)]
+  #[prec(Rocket)]
+  fn expr_call(expr: Expr<'p>, l: Token, arg: Vec<Expr<'p>>, _r: Token) -> Expr<'p> {
+    mk_expr(l.loc(), Call { func: Box::new(expr), arg, func_ref: dft() }.into())
   }
   #[rule(Expr -> IntLit)]
   fn expr_int(&mut self, i: Token) -> Expr<'p> { mk_int_lit(i.loc(), i.str(), &mut self.error) }
