@@ -57,7 +57,7 @@ priority = [
   { assoc = 'no_assoc', terms = ['UMinus', 'Not'] },
   { assoc = 'no_assoc', terms = ['LBrk', 'Dot'] },
   { assoc = 'no_assoc', terms = ['RPar', 'Empty'] },
-  { assoc = 'no_assoc', terms = ['Else'] },
+  { assoc = 'no_assoc', terms = ['LPar', 'Else'] },
 ]
 
 [lexical]
@@ -245,7 +245,6 @@ impl<'p> Parser<'p> {
   #[rule(Expr -> LValue)]
   fn expr_lvalue(l: Expr<'p>) -> Expr<'p> { l }
   #[rule(Expr -> Expr LPar ExprListOrEmpty RPar)]
-  #[prec(Rocket)]
   fn expr_call(expr: Expr<'p>, l: Token, arg: Vec<Expr<'p>>, _r: Token) -> Expr<'p> {
     mk_expr(l.loc(), Call { func: Box::new(expr), arg, func_ref: dft() }.into())
   }
