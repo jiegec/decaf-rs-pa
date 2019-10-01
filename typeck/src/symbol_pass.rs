@@ -85,7 +85,7 @@ impl<'a> SymbolPass<'a> {
         s.scopes.declare(Symbol::This(f));
       }
       for v in &f.param { s.var_def(v); }
-      s.block(&f.body);
+      s.block(f.body.as_ref().unwrap());
     });
     let ret_param_ty = iter::once(ret_ty)
       .chain(f.param.iter().map(|v| v.ty.get()));

@@ -25,9 +25,9 @@ impl<'a> TypePass<'a> {
     self.scoped(ScopeOwner::Class(c), |s| for f in &c.field {
       if let FieldDef::FuncDef(f) = f {
         s.cur_func = Some(f);
-        let t = s.scoped(ScopeOwner::Param(f), |s| s.block(&f.body));
+        let t = s.scoped(ScopeOwner::Param(f), |s| s.block(f.body.as_ref().unwrap()));
         if !t && f.ret_ty() != Ty::void() {
-          s.errors.issue(f.body.loc, ErrorKind::NoReturn)
+          s.errors.issue(f.body.as_ref().unwrap().loc, ErrorKind::NoReturn)
         }
       };
     });
@@ -196,6 +196,7 @@ impl<'a> TypePass<'a> {
           None => self.errors.issue(e.loc, NoSuchClass(c.name)),
         }
       }
+      Lambda(_) => unimplemented!(),
     };
     e.ty.set(ty);
     ty
@@ -298,7 +299,7 @@ impl<'a> TypePass<'a> {
   }
 
   fn call(&mut self, c: &'a Call<'a>, loc: Loc) -> Ty<'a> {
-    let v = &c.func;
+    let v = if let ExprKind::VarSel(v) = &c.func.kind { v } else { unimplemented!() };
     match &v.owner {
       Some(owner) => {
         self.cur_used = true;

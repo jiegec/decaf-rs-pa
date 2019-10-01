@@ -1,6 +1,7 @@
 use common::{IndentPrinter, IgnoreResult};
 use syntax::*;
 use std::fmt::Write;
+use either::{Either, Left, Right};
 
 pub fn program(pr: &Program, p: &mut IndentPrinter) { pr.print(p); }
 
@@ -32,6 +33,15 @@ impl<T: Printable> Printable for Option<T> {
   }
 }
 
+impl<L: Printable, R: Printable> Printable for Either<L, R> {
+  fn print(&self, p: &mut IndentPrinter) {
+    match self {
+      Left(l) => l.print(p),
+      Right(r) => r.print(p),
+    }
+  }
+}
+
 impl<T: Printable> Printable for Box<T> {
   fn print(&self, p: &mut IndentPrinter) { self.as_ref().print(p); }
 }
@@ -51,6 +61,13 @@ impl Printable for SynTy<'_> {
       SynTyKind::Bool => write!(p, "TBool @ {:?}", self.loc).ignore(),
       SynTyKind::String => write!(p, "TString @ {:?}", self.loc).ignore(),
       SynTyKind::Void => write!(p, "TVoid @ {:?}", self.loc).ignore(),
+      SynTyKind::Var => write!(p, "<none>").ignore(),
+      SynTyKind::Function => {
+        write!(p, "TLambda @ {:?}", self.loc).ignore();
+        let function_type = self.function_type.as_ref().unwrap();
+        p.indent(|p| function_type.0.print(p));
+        p.indent(|p| function_type.1.print(p));
+      },
       SynTyKind::Named(c) => {
         write!(p, "TClass @ {:?}", self.loc).ignore();
         p.indent(|p| c.print(p));
@@ -88,9 +105,20 @@ macro_rules! print_enum {
 
 // self.class[0] must be valid, because parser requires their are at least one class
 print_struct!(Program<'_>, self, self.class[0].loc, TopLevel, self.class);
-print_struct!(ClassDef<'_>, self, self.loc, ClassDef, self.name self.parent self.field);
 print_struct!(VarDef<'_>, self, self.loc, LocalVarDef, self.syn_ty self.name self.init());
 print_struct!(Block<'_>, self, self.loc, Block, self.stmt);
+
+impl Printable for ClassDef<'_> {
+  fn print(&self, p: &mut IndentPrinter) {
+    write!(p, "ClassDef @ {:?}", self.loc).ignore();
+    p.indent(|p| {
+      if self.abstract_ { "ABSTRACT".print(p); }
+      self.name.print(p);
+      self.parent.print(p);
+      self.field.print(p);
+    });
+  }
+}
 
 impl Printable for FieldDef<'_> {
   fn print(&self, p: &mut IndentPrinter) {
@@ -107,6 +135,7 @@ impl Printable for FieldDef<'_> {
         write!(p, "MethodDef @ {:?}", f.loc).ignore();
         p.indent(|p| {
           if f.static_ { "STATIC".print(p); }
+          if f.abstract_ { "ABSTRACT".print(p); }
           f.name.print(p);
           f.ret.print(p);
           f.param.print(p);
@@ -134,9 +163,9 @@ impl Printable for Expr<'_> {
     use ExprKind::*;
     print_enum!(self.kind, self.loc, p, x,
       VarSel => x.owner x.name, IndexSel => x.arr x.idx, IntLit => x, BoolLit => x, StringLit => "\"".to_owned() + x + "\"",
-      NullLit => , Call => x.func.owner x.func.name x.arg, Unary => x.op.to_word_str() x.r, Binary => x.op.to_word_str() x.l x.r,
+      NullLit => , Call => x.func x.arg, Unary => x.op.to_word_str() x.r, Binary => x.op.to_word_str() x.l x.r,
       This => , ReadInt => , ReadLine => , NewClass => x.name, NewArray => x.elem x.len, ClassTest => x.expr x.name,
-      ClassCast => x.expr x.name
+      ClassCast => x.expr x.name, Lambda => x.param x.body
     );
   }
 }

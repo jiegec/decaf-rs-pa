@@ -1,6 +1,7 @@
 use crate::{ast::*, ty::*, VecExt, dft, check_str, mk_stmt, mk_expr, mk_int_lit, mk_block};
 use parser_macros::lalr1;
 use common::{ErrorKind, Loc, BinOp, UnOp, Errors, NO_LOC};
+use either::{Left, Right};
 
 pub fn work<'p>(code: &'p str, alloc: &'p ASTAlloc<'p>) -> Result<&'p Program<'p>, Errors<'p, Ty<'p>>> {
   let mut parser = Parser { alloc, error: Errors::default() };
@@ -46,6 +47,7 @@ fn mk_bin<'p>(l: Expr<'p>, r: Expr<'p>, loc: Loc, op: BinOp) -> Expr<'p> {
 #[lalr1(Program)]
 #[lex(r##"
 priority = [
+  { assoc = 'right', terms = ['Rocket'] },
   { assoc = 'left', terms = ['Or'] },
   { assoc = 'left', terms = ['And'] },
   { assoc = 'no_assoc', terms = ['Eq', 'Ne'] },
@@ -63,12 +65,15 @@ priority = [
 'int' = 'Int'
 'bool' = 'Bool'
 'string' = 'String'
+'var' = 'Var'
 'new' = 'New'
 'null' = 'Null'
 'true' = 'True'
 'false' = 'False'
 'class' = 'Class'
 'extends' = 'Extends'
+'abstract' = 'Abstract'
+'fun' = 'Fun'
 'this' = 'This'
 'while' = 'While'
 'for' = 'For'
@@ -106,6 +111,7 @@ priority = [
 '\{' = 'LBrc' # short for brace
 '\}' = 'RBrc'
 ':' = 'Colon'
+'=>' = 'Rocket'
 # line break in a StringLit will be reported by parser's semantic act
 '"[^"\\]*(\\.[^"\\]*)*"' = 'StringLit'
 '"[^"\\]*(\\.[^"\\]*)*' = 'UntermString'
@@ -126,10 +132,15 @@ impl<'p> Parser<'p> {
   #[rule(ClassList -> ClassDef)]
   fn class_list1(c: &'p ClassDef<'p>) -> Vec<&'p ClassDef<'p>> { vec![c] }
 
-  #[rule(ClassDef -> Class Id MaybeExtends LBrc FieldList RBrc)]
-  fn class_def(&self, c: Token, name: Token, parent: Option<&'p str>, _l: Token, field: Vec<FieldDef<'p>>, _r: Token) -> &'p ClassDef<'p> {
-    self.alloc.class.alloc(ClassDef { loc: c.loc(), name: name.str(), parent, field, parent_ref: dft(), scope: dft() })
+  #[rule(ClassDef -> MaybeAbstract Class Id MaybeExtends LBrc FieldList RBrc)]
+  fn class_def(&self, abstract_: bool, c: Token, name: Token, parent: Option<&'p str>, _l: Token, field: Vec<FieldDef<'p>>, _r: Token) -> &'p ClassDef<'p> {
+    self.alloc.class.alloc(ClassDef { abstract_, loc: c.loc(), name: name.str(), parent, field, parent_ref: dft(), scope: dft() })
   }
+
+  #[rule(MaybeAbstract -> Abstract)]
+  fn maybe_abstract1(_a: Token) -> bool { true }
+  #[rule(MaybeAbstract ->)]
+  fn maybe_abstract0() -> bool { false }
 
   #[rule(MaybeExtends -> Extends Id)]
   fn maybe_extends1(_e: Token, name: Token) -> Option<&'p str> { Some(name.str()) }
@@ -143,13 +154,17 @@ impl<'p> Parser<'p> {
   #[rule(FieldList ->)]
   fn field_list0() -> Vec<FieldDef<'p>> { vec![] }
 
+  #[rule(FuncDef -> Abstract Type Id LPar VarDefListOrEmpty RPar Semi)]
+  fn func_def2(&self, _a: Token, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, _s: Token) -> &'p FuncDef<'p> {
+    self.alloc.func.alloc(FuncDef { loc: name.loc(), name: name.str(), ret, param, static_: false, abstract_: true, body: None, ret_param_ty: dft(), class: dft(), scope: dft() })
+  }
   #[rule(FuncDef -> Static Type Id LPar VarDefListOrEmpty RPar Block)]
   fn func_def1(&self, _s: Token, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Block<'p>) -> &'p FuncDef<'p> {
-    self.alloc.func.alloc(FuncDef { loc: name.loc(), name: name.str(), ret, param, static_: true, body, ret_param_ty: dft(), class: dft(), scope: dft() })
+    self.alloc.func.alloc(FuncDef { loc: name.loc(), name: name.str(), ret, param, static_: true, abstract_: false, body: Some(body), ret_param_ty: dft(), class: dft(), scope: dft() })
   }
   #[rule(FuncDef -> Type Id LPar VarDefListOrEmpty RPar Block)]
   fn func_def0(&self, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Block<'p>) -> &'p FuncDef<'p> {
-    self.alloc.func.alloc(FuncDef { loc: name.loc(), name: name.str(), ret, param, static_: false, body, ret_param_ty: dft(), class: dft(), scope: dft() })
+    self.alloc.func.alloc(FuncDef { loc: name.loc(), name: name.str(), ret, param, static_: false, abstract_: false, body: Some(body), ret_param_ty: dft(), class: dft(), scope: dft() })
   }
 
   // the `VarDef` in grammar only supports VarDef without init value
@@ -216,6 +231,12 @@ impl<'p> Parser<'p> {
     let loc = name.loc();
     mk_stmt(loc, (&*self.alloc.var.alloc(VarDef { loc, name: name.str(), syn_ty, init: Some((a.loc(), init)), ty: dft(), owner: dft() })).into())
   }
+  #[rule(Simple -> Var Id Assign Expr)] // the VarDef with init
+  fn simple_var_def_init_var(&self, var: Token, name: Token, a: Token, init: Expr<'p>) -> Stmt<'p> {
+    let loc = name.loc();
+    let syn_ty = SynTy { loc: var.loc(), arr: 0, kind: SynTyKind::Var, function_type: None };
+    mk_stmt(loc, (&*self.alloc.var.alloc(VarDef { loc, name: name.str(), syn_ty, init: Some((a.loc(), init)), ty: dft(), owner: dft() })).into())
+  }
   #[rule(Simple -> Expr)]
   fn simple_mk_expr(e: Expr<'p>) -> Stmt<'p> { mk_stmt(e.loc, e.into()) }
   #[rule(Simple ->)]
@@ -223,9 +244,10 @@ impl<'p> Parser<'p> {
 
   #[rule(Expr -> LValue)]
   fn expr_lvalue(l: Expr<'p>) -> Expr<'p> { l }
-  #[rule(Expr -> MaybeOwner Id LPar ExprListOrEmpty RPar)]
-  fn expr_call(owner: Option<Box<Expr<'p>>>, name: Token, l: Token, arg: Vec<Expr<'p>>, _r: Token) -> Expr<'p> {
-    mk_expr(l.loc(), Call { func: VarSel { owner, name: name.str(), var: dft() }, arg, func_ref: dft() }.into())
+  #[rule(Expr -> Expr LPar ExprListOrEmpty RPar)]
+  #[prec(Rocket)]
+  fn expr_call(expr: Expr<'p>, l: Token, arg: Vec<Expr<'p>>, _r: Token) -> Expr<'p> {
+    mk_expr(l.loc(), Call { func: Box::new(expr), arg, func_ref: dft() }.into())
   }
   #[rule(Expr -> IntLit)]
   fn expr_int(&mut self, i: Token) -> Expr<'p> { mk_int_lit(i.loc(), i.str(), &mut self.error) }
@@ -300,6 +322,14 @@ impl<'p> Parser<'p> {
   fn expr_not(n: Token, r: Expr<'p>) -> Expr<'p> {
     mk_expr(n.loc(), Unary { op: UnOp::Not, r: Box::new(r) }.into())
   }
+  #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Rocket Expr)]
+  fn expr_lambda_expr(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, _r: Token, expr: Expr<'p>) -> Expr<'p> {
+    mk_expr(f.loc(), Lambda { param, body: Left(Box::new(expr)) }.into())
+  }
+  #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Block)]
+  fn expr_lambda_block(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, block: Block<'p>) -> Expr<'p> {
+    mk_expr(f.loc(), Lambda { param, body: Right(Box::new(block)) }.into())
+  }
 
   #[rule(ExprList -> ExprList Comma Expr)]
   fn expr_list(l: Vec<Expr<'p>>, _c: Token, r: Expr<'p>) -> Vec<Expr<'p>> { l.pushed(r) }
@@ -316,25 +346,37 @@ impl<'p> Parser<'p> {
   #[rule(MaybeOwner ->)]
   fn maybe_owner0() -> Option<Box<Expr<'p>>> { None }
 
-  #[rule(LValue -> MaybeOwner Id)]
-  fn lvalue_id(owner: Option<Box<Expr<'p>>>, name: Token) -> Expr<'p> {
+  #[rule(VarSel -> MaybeOwner Id)]
+  fn var_sel(owner: Option<Box<Expr<'p>>>, name: Token) -> Expr<'p> {
     mk_expr(name.loc(), VarSel { owner, name: name.str(), var: dft() }.into())
   }
+
+  #[rule(LValue -> VarSel)]
+  fn lvalue_var_sel(e: Expr<'p>) -> Expr<'p> { e }
   #[rule(LValue -> Expr LBrk Expr RBrk)]
   fn lvalue_index(arr: Expr<'p>, l: Token, idx: Expr<'p>, _r: Token) -> Expr<'p> {
     mk_expr(l.loc(), IndexSel { arr: Box::new(arr), idx: Box::new(idx) }.into())
   }
 
   #[rule(Type -> Int)]
-  fn type_int(i: Token) -> SynTy<'p> { SynTy { loc: i.loc(), arr: 0, kind: SynTyKind::Int } }
+  fn type_int(i: Token) -> SynTy<'p> { SynTy { loc: i.loc(), arr: 0, kind: SynTyKind::Int, function_type: None } }
   #[rule(Type -> Bool)]
-  fn type_bool(b: Token) -> SynTy<'p> { SynTy { loc: b.loc(), arr: 0, kind: SynTyKind::Bool } }
+  fn type_bool(b: Token) -> SynTy<'p> { SynTy { loc: b.loc(), arr: 0, kind: SynTyKind::Bool, function_type: None } }
   #[rule(Type -> Void)]
-  fn type_void(v: Token) -> SynTy<'p> { SynTy { loc: v.loc(), arr: 0, kind: SynTyKind::Void } }
+  fn type_void(v: Token) -> SynTy<'p> { SynTy { loc: v.loc(), arr: 0, kind: SynTyKind::Void, function_type: None } }
   #[rule(Type -> String)]
-  fn type_string(s: Token) -> SynTy<'p> { SynTy { loc: s.loc(), arr: 0, kind: SynTyKind::String } }
+  fn type_string(s: Token) -> SynTy<'p> { SynTy { loc: s.loc(), arr: 0, kind: SynTyKind::String, function_type: None } }
   #[rule(Type -> Class Id)]
-  fn type_class(c: Token, name: Token) -> SynTy<'p> { SynTy { loc: c.loc(), arr: 0, kind: SynTyKind::Named(name.str()) } }
+  fn type_class(c: Token, name: Token) -> SynTy<'p> { SynTy { loc: c.loc(), arr: 0, kind: SynTyKind::Named(name.str()), function_type: None } }
   #[rule(Type -> Type LBrk RBrk)]
   fn type_array(mut ty: SynTy<'p>, _l: Token, _r: Token) -> SynTy<'p> { (ty.arr += 1, ty).1 }
+  #[rule(Type -> Type LPar TypeList RPar)]
+  fn type_function(ret: SynTy<'p>, l: Token, args: Vec<SynTy<'p>>, _r: Token) -> SynTy<'p> { SynTy { loc: ret.loc, arr: 0, kind: SynTyKind::Function, function_type: Some(Box::new((ret, args))) } }
+
+  #[rule(TypeList -> TypeList Comma Type)]
+  fn type_list_2(mut list: Vec<SynTy<'p>>, _c: Token, ty: SynTy<'p>) -> Vec<SynTy<'p>> { list.pushed(ty) }
+  #[rule(TypeList -> Type)]
+  fn type_list_1(ty: SynTy<'p>) -> Vec<SynTy<'p>> { vec![ty] }
+  #[rule(TypeList -> )]
+  fn type_list_0() -> Vec<SynTy<'p>> { vec![] }
 }

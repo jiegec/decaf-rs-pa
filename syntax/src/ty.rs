@@ -9,6 +9,8 @@ pub enum SynTyKind<'a> {
   String,
   Void,
   Named(&'a str),
+  Var,
+  Function
 }
 
 #[derive(Eq, PartialEq)]
@@ -16,6 +18,7 @@ pub struct SynTy<'a> {
   pub loc: Loc,
   pub arr: u32,
   pub kind: SynTyKind<'a>,
+  pub function_type: Option<Box<(SynTy<'a>, Vec<SynTy<'a>>)>>,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]

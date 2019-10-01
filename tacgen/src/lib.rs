@@ -59,7 +59,7 @@ impl<'a> TacGen<'a> {
           } else {
             FuncNameKind::Member { class: c.name, func: fu.name }
           }, self.reg_cnt, fu.ret_ty() != Ty::void());
-          self.block(&fu.body, &mut f);
+          self.block(fu.body.as_ref().unwrap(), &mut f);
           f.max_reg = self.reg_cnt;
           // add an return at the end of return-void function
           if fu.ret_ty() == Ty::void() {
@@ -235,8 +235,8 @@ impl<'a> TacGen<'a> {
         Reg(s1)
       }
       NullLit(_) => Const(0),
-            Call(c) => {
-        let v = &c.func;
+      Call(c) => {
+        let v = if let ExprKind::VarSel(v) = &c.func.kind { v } else { unimplemented!() };
         Reg(match &v.owner {
           Some(o)if o.ty.get().is_arr() => {
             let arr = self.expr(o, f);
@@ -351,6 +351,7 @@ impl<'a> TacGen<'a> {
         f.push(Label { label: ok });
         obj
       }
+      Lambda(_) => unimplemented!(),
     }
   }
 }

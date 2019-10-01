@@ -2,6 +2,7 @@ use crate::{ty::*, symbol::*};
 use common::{Loc, Ref, BinOp, UnOp};
 use typed_arena::Arena;
 use std::cell::{Cell, RefCell};
+use either::Either;
 
 #[derive(Default)]
 pub struct ASTAlloc<'a> {
@@ -27,6 +28,7 @@ pub struct ClassDef<'a> {
   pub field: Vec<FieldDef<'a>>,
   pub parent_ref: Cell<Option<&'a ClassDef<'a>>>,
   pub scope: RefCell<Scope<'a>>,
+  pub abstract_: bool,
 }
 
 impl<'a> ClassDef<'a> {
@@ -71,7 +73,8 @@ pub struct FuncDef<'a> {
   pub ret: SynTy<'a>,
   pub param: Vec<&'a VarDef<'a>>,
   pub static_: bool,
-  pub body: Block<'a>,
+  pub abstract_: bool,
+  pub body: Option<Block<'a>>,
   // placing ret and param ty in one slice is mainly to some space, especially the size of struct Ty
   // [0] is ret_ty, [1..] is parm_ty
   pub ret_param_ty: Cell<Option<&'a [Ty<'a>]>>,
@@ -174,6 +177,7 @@ pub enum ExprKind<'a> {
   NewArray(NewArray<'a>),
   ClassTest(ClassTest<'a>),
   ClassCast(ClassCast<'a>),
+  Lambda(Lambda<'a>),
 }
 
 pub struct VarSel<'a> {
@@ -188,9 +192,9 @@ pub struct IndexSel<'a> {
 }
 
 pub struct Call<'a> {
-  // we don't use func.var, and this VarSel cannot be visited like other VarSel
-  // placing a VarSel here instead of "owner + name" is to make upgrading it to an Expr easier
-  pub func: VarSel<'a>,
+  // the framework only support `func` as VarSel
+  // hint: there are 2 places using `func` as VarSel, and there are 2 unimplemented!() respectively
+  pub func: Box<Expr<'a>>,
   pub arg: Vec<Expr<'a>>,
   pub func_ref: Cell<Option<&'a FuncDef<'a>>>,
 }
@@ -240,3 +244,8 @@ pub struct This;
 pub struct ReadInt;
 
 pub struct ReadLine;
+
+pub struct Lambda<'a> {
+  pub param: Vec<&'a VarDef<'a>>,
+  pub body: Either<Box<Expr<'a>>, Box<Block<'a>>>,
+}

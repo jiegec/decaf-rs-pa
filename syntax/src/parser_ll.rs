@@ -86,7 +86,7 @@ fn merge_terms<'p>(mut l: Expr<'p>, ts: Terms<'p>) -> Expr<'p> {
 // this is pub because StackItem is pub(maybe you need it? though not very likely)
 pub enum IndexOrIdOrCall<'p> {
   Index(Loc, Expr<'p>),
-  IdOrCall(Loc, &'p str, Option<Vec<Expr<'p>>>),
+  IdOrCall(Loc, &'p str, Option<(Loc, Vec<Expr<'p>>)>),
 }
 
 pub enum NewClassOrArray<'p> {
@@ -171,7 +171,7 @@ impl<'p> Parser<'p> {
 
   #[rule(ClassDef -> Class Id MaybeExtends LBrc FieldList RBrc)]
   fn class_def(&self, c: Token, name: Token, parent: Option<&'p str>, _l: Token, field: Vec<FieldDef<'p>>, _r: Token) -> &'p ClassDef<'p> {
-    self.alloc.class.alloc(ClassDef { loc: c.loc(), name: name.str(), parent, field: field.reversed(), parent_ref: dft(), scope: dft() })
+    self.alloc.class.alloc(ClassDef { abstract_: false, loc: c.loc(), name: name.str(), parent, field: field.reversed(), parent_ref: dft(), scope: dft() })
   }
 
   #[rule(MaybeExtends -> Extends Id)]
@@ -187,13 +187,13 @@ impl<'p> Parser<'p> {
   #[rule(FieldDef -> Static Type Id LPar VarDefListOrEmpty RPar Block)]
   fn filed_def_f1(&self, _s: Token, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Block<'p>) -> FieldDef<'p> {
     let (loc, name) = (name.loc(), name.str());
-    FieldDef::FuncDef(self.alloc.func.alloc(FuncDef { loc, name, ret, param: param.reversed(), static_: true, body, ret_param_ty: dft(), class: dft(), scope: dft() }))
+    FieldDef::FuncDef(self.alloc.func.alloc(FuncDef { loc, name, ret, param: param.reversed(), static_: true, abstract_: false, body: Some(body), ret_param_ty: dft(), class: dft(), scope: dft() }))
   }
   #[rule(FieldDef -> Type Id FuncOrVar)]
   fn filed_def_fv(&self, syn_ty: SynTy<'p>, name: Token, fov: Option<(Vec<&'p VarDef<'p>>, Block<'p>)>) -> FieldDef<'p> {
     let (loc, name) = (name.loc(), name.str());
     if let Some((param, body)) = fov {
-      FieldDef::FuncDef(self.alloc.func.alloc(FuncDef { loc, name, ret: syn_ty, param: param.reversed(), static_: false, body, ret_param_ty: dft(), class: dft(), scope: dft() }))
+      FieldDef::FuncDef(self.alloc.func.alloc(FuncDef { loc, name, ret: syn_ty, param: param.reversed(), static_: false, abstract_: false, body: Some(body), ret_param_ty: dft(), class: dft(), scope: dft() }))
     } else {
       FieldDef::VarDef(self.alloc.var.alloc(VarDef { loc, name, syn_ty, init: None, ty: dft(), owner: dft() }))
     }
@@ -399,9 +399,11 @@ impl<'p> Parser<'p> {
       match t {
         IndexOrIdOrCall::Index(loc, idx) =>
           l = mk_expr(loc, IndexSel { arr: Box::new(l), idx: Box::new(idx) }.into()),
-        IndexOrIdOrCall::IdOrCall(loc, name, ioc) => match ioc {
-          Some(arg) =>
-            l = mk_expr(loc, Call { func: VarSel { owner: Some(Box::new(l)), name, var: dft() }, arg, func_ref: dft() }.into()),
+        IndexOrIdOrCall::IdOrCall(loc, name, maybe_call) => match maybe_call {
+          Some((call_loc, arg)) => {
+            let func = Box::new(mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()));
+            l = mk_expr(call_loc, Call { func, arg, func_ref: dft() }.into());
+          }
           None => l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()),
         }
       }
@@ -413,11 +415,7 @@ impl<'p> Parser<'p> {
   fn term8_index(l: Token, idx: Expr<'p>, _r: Token, r: Vec<IndexOrIdOrCall<'p>>) -> Vec<IndexOrIdOrCall<'p>> { r.pushed(IndexOrIdOrCall::Index(l.loc(), idx)) }
   #[rule(Term8 -> Dot Id IdOrCall Term8)]
   fn term8_id_or_call(_d: Token, name: Token, arg: Option<(Loc, Vec<Expr<'p>>)>, r: Vec<IndexOrIdOrCall<'p>>) -> Vec<IndexOrIdOrCall<'p>> {
-    if let Some((loc, arg)) = arg {
-      r.pushed(IndexOrIdOrCall::IdOrCall(loc, name.str(), Some(arg)))
-    } else {
-      r.pushed(IndexOrIdOrCall::IdOrCall(name.loc(), name.str(), None))
-    }
+    r.pushed(IndexOrIdOrCall::IdOrCall(name.loc(), name.str(), arg))
   }
   #[rule(Term8 ->)]
   fn term8_0() -> Vec<IndexOrIdOrCall<'p>> { vec![] }
@@ -454,7 +452,10 @@ impl<'p> Parser<'p> {
   #[rule(Expr9 -> Id IdOrCall)]
   fn expr9_id_or_call(name: Token, ioc: Option<(Loc, Vec<Expr<'p>>)>) -> Expr<'p> {
     match ioc {
-      Some((loc, arg)) => mk_expr(loc, Call { func: VarSel { owner: None, name: name.str(), var: dft() }, arg, func_ref: dft() }.into()),
+      Some((loc, arg)) => {
+        let func = Box::new(mk_expr(name.loc(), VarSel { owner: None, name: name.str(), var: dft() }.into()));
+        mk_expr(loc, Call { func, arg, func_ref: dft() }.into())
+      }
       None => mk_expr(name.loc(), VarSel { owner: None, name: name.str(), var: dft() }.into()),
     }
   }
@@ -492,15 +493,15 @@ impl<'p> Parser<'p> {
   fn new_array_rem0(len: Expr<'p>, _r: Token) -> (u32, Expr<'p>) { (0, len) }
 
   #[rule(SimpleType -> Int)]
-  fn type_int(i: Token) -> SynTy<'p> { SynTy { loc: i.loc(), arr: 0, kind: SynTyKind::Int } }
+  fn type_int(i: Token) -> SynTy<'p> { SynTy { loc: i.loc(), arr: 0, kind: SynTyKind::Int, function_type: None } }
   #[rule(SimpleType -> Bool)]
-  fn type_bool(b: Token) -> SynTy<'p> { SynTy { loc: b.loc(), arr: 0, kind: SynTyKind::Bool } }
+  fn type_bool(b: Token) -> SynTy<'p> { SynTy { loc: b.loc(), arr: 0, kind: SynTyKind::Bool, function_type: None } }
   #[rule(SimpleType -> Void)]
-  fn type_void(v: Token) -> SynTy<'p> { SynTy { loc: v.loc(), arr: 0, kind: SynTyKind::Void } }
+  fn type_void(v: Token) -> SynTy<'p> { SynTy { loc: v.loc(), arr: 0, kind: SynTyKind::Void, function_type: None } }
   #[rule(SimpleType -> String)]
-  fn type_string(s: Token) -> SynTy<'p> { SynTy { loc: s.loc(), arr: 0, kind: SynTyKind::String } }
+  fn type_string(s: Token) -> SynTy<'p> { SynTy { loc: s.loc(), arr: 0, kind: SynTyKind::String, function_type: None } }
   #[rule(SimpleType -> Class Id)]
-  fn type_class(c: Token, name: Token) -> SynTy<'p> { SynTy { loc: c.loc(), arr: 0, kind: SynTyKind::Named(name.str()) } }
+  fn type_class(c: Token, name: Token) -> SynTy<'p> { SynTy { loc: c.loc(), arr: 0, kind: SynTyKind::Named(name.str()), function_type: None } }
   #[rule(Type -> SimpleType ArrayDim)]
   fn type_array(mut ty: SynTy<'p>, dim: u32) -> SynTy<'p> { (ty.arr = dim, ty).1 }
 
