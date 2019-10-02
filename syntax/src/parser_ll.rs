@@ -111,6 +111,11 @@ pub enum NewClassOrArray<'p> {
   NewArray(SynTy<'p>, Expr<'p>),
 }
 
+pub enum ArrayDimOrFunction<'p> {
+  ArrayDim,
+  Function(Vec<SynTy<'p>>),
+}
+
 #[ll1(Program)]
 #[verbose("ll1.txt")]
 #[lex(r##"
@@ -540,29 +545,29 @@ impl<'p> Parser<'p> {
   #[rule(SimpleType -> Class Id)]
   fn type_class(c: Token, name: Token) -> SynTy<'p> { SynTy { loc: c.loc(), arr: 0, kind: SynTyKind::Named(name.str()), function_type: None } }
   #[rule(Type -> SimpleType ArrayDimOrFunction)]
-  fn type_array_or_func(mut ty: SynTy<'p>, dim_or_fun: Either<u32, Vec<SynTy<'p>>>) -> SynTy<'p> {
-    match dim_or_fun {
-      Left(dim) => {
-        (ty.arr = dim, ty).1 
-      },
-      Right(param) => {
-        SynTy { loc: ty.loc, arr: 0, kind: SynTyKind::Function, function_type: Some(Box::new((ty, param.reversed()))) }
+  fn type_array_or_func(mut l: SynTy<'p>, dim_or_fun: Vec<ArrayDimOrFunction<'p>>) -> SynTy<'p> {
+    for t in dim_or_fun.into_iter().rev() {
+      match t {
+        ArrayDimOrFunction::ArrayDim =>
+          l.arr += 1,
+        ArrayDimOrFunction::Function(arg) => 
+          l = SynTy { loc: l.loc, arr: 0, kind: SynTyKind::Function, function_type: Some(Box::new((l, arg))) },
       }
     }
+    l
   }
-  #[rule(ArrayDimOrFunction -> ArrayDim)]
-  fn type_array(dim: u32) -> Either<u32, Vec<SynTy<'p>>> {
-    Left(dim)
+  #[rule(ArrayDimOrFunction -> LBrk RBrk ArrayDimOrFunction)]
+  fn type_array(_l: Token, _r: Token, rest: Vec<ArrayDimOrFunction<'p>>) -> Vec<ArrayDimOrFunction<'p>> {
+    rest.pushed(ArrayDimOrFunction::ArrayDim)
   }
-  #[rule(ArrayDimOrFunction -> LPar TypeList RPar)]
-  fn type_func(_l: Token, list: Vec<SynTy<'p>>, _r: Token) -> Either<u32, Vec<SynTy<'p>>> {
-    Right(list)
+  #[rule(ArrayDimOrFunction -> LPar TypeList RPar ArrayDimOrFunction)]
+  fn type_func(_l: Token, list: Vec<SynTy<'p>>, _r: Token, rest: Vec<ArrayDimOrFunction<'p>>) -> Vec<ArrayDimOrFunction<'p>> {
+    rest.pushed(ArrayDimOrFunction::Function(list.reversed()))
   }
-
-  #[rule(ArrayDim -> LBrk RBrk ArrayDim)]
-  fn array_type(l: Token, _r: Token, dim: u32) -> u32 { dim + 1 }
-  #[rule(ArrayDim ->)]
-  fn array_type0() -> u32 { 0 }
+  #[rule(ArrayDimOrFunction ->)]
+  fn type_array_or_fun0() -> Vec<ArrayDimOrFunction<'p>> {
+    vec![]
+  }
 
   #[rule(TypeList -> SimpleType TypeListRem)]
   fn type_list(ty: SynTy<'p>, mut rem: Vec<SynTy<'p>>) -> Vec<SynTy<'p>> { rem.pushed(ty) }
