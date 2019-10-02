@@ -3,6 +3,7 @@
 use crate::{ast::*, ty::*, VecExt, dft, check_str, mk_expr, mk_stmt, mk_int_lit, mk_block};
 use parser_macros::ll1;
 use common::{ErrorKind, Loc, NO_LOC, BinOp, UnOp, Errors, HashSet, HashMap};
+use either::{Either, Left, Right};
 
 pub fn work<'p>(code: &'p str, alloc: &'p ASTAlloc<'p>) -> Result<&'p Program<'p>, Errors<'p, Ty<'p>>> {
   let mut parser = Parser { alloc, error: Errors::default() };
@@ -165,6 +166,7 @@ priority = []
 '\{' = 'LBrc' # short for brace
 '\}' = 'RBrc'
 ':' = 'Colon'
+'=>' = 'Rocket'
 # line break in a StringLit will be reported by parser's semantic act
 '"[^"\\]*(\\.[^"\\]*)*"' = 'StringLit'
 '"[^"\\]*(\\.[^"\\]*)*' = 'UntermString'
@@ -377,6 +379,10 @@ impl<'p> Parser<'p> {
 
   #[rule(Expr -> Expr1)]
   fn expr(e: Expr<'p>) -> Expr<'p> { e }
+  #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar ExprOrBlock)]
+  fn expr_function(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Either<Box<Expr<'p>>, Box<Block<'p>>>) -> Expr<'p> {
+    mk_expr(f.loc(), Lambda { param: param.reversed(), body }.into())
+  }
 
   #[rule(Expr1 -> Expr2 Term1)]
   fn expr1(l: Expr<'p>, ts: Terms<'p>) -> Expr<'p> { merge_terms(l, ts) }
@@ -527,6 +533,11 @@ impl<'p> Parser<'p> {
   #[rule(NewArrayRem -> Expr RBrk)]
   fn new_array_rem0(len: Expr<'p>, _r: Token) -> (u32, Expr<'p>) { (0, len) }
 
+  #[rule(ExprOrBlock -> Rocket Expr)]
+  fn expr_or_block_expr(_r: Token, expr: Expr<'p>) -> Either<Box<Expr<'p>>, Box<Block<'p>>> { Left(Box::new(expr)) }
+  #[rule(ExprOrBlock -> Block)]
+  fn expr_or_block_block(block: Block<'p>) -> Either<Box<Expr<'p>>, Box<Block<'p>>> { Right(Box::new(block)) }
+
   #[rule(SimpleType -> Int)]
   fn type_int(i: Token) -> SynTy<'p> { SynTy { loc: i.loc(), arr: 0, kind: SynTyKind::Int, function_type: None } }
   #[rule(SimpleType -> Bool)]
@@ -537,11 +548,35 @@ impl<'p> Parser<'p> {
   fn type_string(s: Token) -> SynTy<'p> { SynTy { loc: s.loc(), arr: 0, kind: SynTyKind::String, function_type: None } }
   #[rule(SimpleType -> Class Id)]
   fn type_class(c: Token, name: Token) -> SynTy<'p> { SynTy { loc: c.loc(), arr: 0, kind: SynTyKind::Named(name.str()), function_type: None } }
-  #[rule(Type -> SimpleType ArrayDim)]
-  fn type_array(mut ty: SynTy<'p>, dim: u32) -> SynTy<'p> { (ty.arr = dim, ty).1 }
+  #[rule(Type -> SimpleType ArrayDimOrFunction)]
+  fn type_array_or_func(mut ty: SynTy<'p>, dim_or_fun: Either<u32, Vec<SynTy<'p>>>) -> SynTy<'p> {
+    match dim_or_fun {
+      Left(dim) => {
+        (ty.arr = dim, ty).1 
+      },
+      Right(param) => {
+        SynTy { loc: ty.loc, arr: 0, kind: SynTyKind::Function, function_type: Some(Box::new((ty, param.reversed()))) }
+      }
+    }
+  }
+  #[rule(ArrayDimOrFunction -> ArrayDim)]
+  fn type_array(dim: u32) -> Either<u32, Vec<SynTy<'p>>> {
+    Left(dim)
+  }
+  #[rule(ArrayDimOrFunction -> LPar TypeList RPar)]
+  fn type_func(_l: Token, list: Vec<SynTy<'p>>, _r: Token) -> Either<u32, Vec<SynTy<'p>>> {
+    Right(list)
+  }
 
   #[rule(ArrayDim -> LBrk RBrk ArrayDim)]
   fn array_type(l: Token, _r: Token, dim: u32) -> u32 { dim + 1 }
   #[rule(ArrayDim ->)]
   fn array_type0() -> u32 { 0 }
+
+  #[rule(TypeList -> SimpleType TypeListRem)]
+  fn type_list(ty: SynTy<'p>, mut rem: Vec<SynTy<'p>>) -> Vec<SynTy<'p>> { rem.pushed(ty) }
+  #[rule(TypeListRem -> Comma SimpleType TypeListRem)]
+  fn type_list_rem(_c: Token, ty: SynTy<'p>, mut rem: Vec<SynTy<'p>>) -> Vec<SynTy<'p>> { rem.pushed(ty) }
+  #[rule(TypeListRem ->)]
+  fn type_list_rem0() -> Vec<SynTy<'p>> { vec![] }
 }
