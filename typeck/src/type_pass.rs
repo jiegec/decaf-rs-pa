@@ -65,9 +65,13 @@ impl<'a> TypePass<'a> {
       StmtKind::LocalVarDef(v) => {
         self.cur_var_def = Some(v);
         if let Some((loc, e)) = &v.init {
-          let (l, r) = (v.ty.get(), self.expr(e));
-          if !r.assignable_to(l) {
-            self.errors.issue(*loc, IncompatibleBinary { l, op: "=", r })
+          let (l, r) = (&v.ty, self.expr(e));
+          if !r.assignable_to(l.get()) {
+            self.errors.issue(*loc, IncompatibleBinary { l: l.get(), op: "=", r })
+          }
+          // type deduction
+          if l.get().is_var() {
+            l.set(r);
           }
         }
         self.cur_var_def = None;

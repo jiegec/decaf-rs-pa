@@ -35,6 +35,8 @@ pub enum TyKind<'a> {
   Class(Ref<'a, ClassDef<'a>>),
   // [0] = ret, [1..] = param
   Func(&'a [Ty<'a>]),
+  // auto deduced in type pass
+  Var,
 }
 
 impl Default for TyKind<'_> {
@@ -53,6 +55,7 @@ impl<'a> Ty<'a> {
     use TyKind::*;
     match (self.kind, rhs.kind) {
       (Error, _) | (_, Error) => true,
+      (_, Var) => true,
       _ => self.arr == rhs.arr && match (self.kind, rhs.kind) {
         (Int, Int) | (Bool, Bool) | (String, String) | (Void, Void) => true,
         (Object(c1), Object(Ref(c2))) => c1.extends(c2),
@@ -83,6 +86,7 @@ impl<'a> Ty<'a> {
   pub fn is_func(&self) -> bool { self.arr == 0 && if let TyKind::Func(_) = self.kind { true } else { false } }
   pub fn is_class(&self) -> bool { self.arr == 0 && if let TyKind::Class(_) = self.kind { true } else { false } }
   pub fn is_object(&self) -> bool { self.arr == 0 && if let TyKind::Object(_) = self.kind { true } else { false } }
+  pub fn is_var(&self) -> bool { self.arr == 0 && if let TyKind::Var = self.kind { true } else { false } }
 }
 
 impl fmt::Debug for Ty<'_> {
@@ -94,6 +98,7 @@ impl fmt::Debug for Ty<'_> {
       TyKind::Void => write!(f, "void"),
       TyKind::Error => write!(f, "error"), // we don't expect to reach this case in printing scope info
       TyKind::Null => write!(f, "null"),
+      TyKind::Var => write!(f, "var"),
       TyKind::Object(c) | TyKind::Class(c) => write!(f, "class {}", c.name),
       TyKind::Func(ret_param) => show_func_ty(ret_param[1..].iter().cloned(), ret_param[0], self.is_arr(), f),
     }?;
