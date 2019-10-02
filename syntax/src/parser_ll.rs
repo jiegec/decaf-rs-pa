@@ -47,7 +47,16 @@ impl<'p> Parser<'p> {
     let table = &table[target];
     let (prod, rhs) = if let Some(x) = table.get(&(lookahead.ty as u32)) { x } else {
       self.error(lookahead, lexer.loc());
-      unimplemented!()
+      loop {
+        if let Some(x) = table.get(&(lookahead.ty as u32)) {
+          // lookahead in Begin(A)
+          break x;
+        } else if let Some(_x) = end.get(&(lookahead.ty as u32)) {
+          // lookahead in End(A)
+          return StackItem::_Fail;
+        }
+        *lookahead = lexer.next();
+      }
     };
     let value_stk = rhs.iter().map(|&x| {
       if is_nt(x) {
@@ -95,6 +104,7 @@ pub enum NewClassOrArray<'p> {
 }
 
 #[ll1(Program)]
+#[verbose("ll1.txt")]
 #[lex(r##"
 priority = []
 
@@ -103,12 +113,15 @@ priority = []
 'int' = 'Int'
 'bool' = 'Bool'
 'string' = 'String'
+'var' = 'Var'
 'new' = 'New'
 'null' = 'Null'
 'true' = 'True'
 'false' = 'False'
 'class' = 'Class'
 'extends' = 'Extends'
+'abstract' = 'Abstract'
+'fun' = 'Fun'
 'this' = 'This'
 'while' = 'While'
 'for' = 'For'
@@ -272,6 +285,12 @@ impl<'p> Parser<'p> {
     } else {
       mk_stmt(e.loc, e.into())
     }
+  }
+  #[rule(Simple -> Var Id Assign Expr)]
+  fn simple_var_def_var(&self, var: Token, name: Token, a: Token, src: Expr<'p>) -> Stmt<'p> {
+    let loc = name.loc();
+    let syn_ty = SynTy { loc: var.loc(), arr: 0, kind: SynTyKind::Var, function_type: None };
+    mk_stmt(loc, (&*self.alloc.var.alloc(VarDef { loc, name: name.str(), syn_ty, init: Some((a.loc(), src)), ty: dft(), owner: dft() })).into())
   }
   #[rule(Simple -> Type Id MaybeAssign)]
   fn simple_var_def(&self, syn_ty: SynTy<'p>, name: Token, init: Option<(Loc, Expr<'p>)>) -> Stmt<'p> {
