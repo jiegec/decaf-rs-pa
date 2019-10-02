@@ -102,7 +102,8 @@ fn merge_terms<'p>(mut l: Expr<'p>, ts: Terms<'p>) -> Expr<'p> {
 // this is pub because StackItem is pub(maybe you need it? though not very likely)
 pub enum IndexOrIdOrCall<'p> {
   Index(Loc, Expr<'p>),
-  IdOrCall(Loc, &'p str, Option<(Loc, Vec<Expr<'p>>)>),
+  Id(Loc, &'p str),
+  Call(Loc, Vec<Expr<'p>>),
 }
 
 pub enum NewClassOrArray<'p> {
@@ -440,13 +441,10 @@ impl<'p> Parser<'p> {
       match t {
         IndexOrIdOrCall::Index(loc, idx) =>
           l = mk_expr(loc, IndexSel { arr: Box::new(l), idx: Box::new(idx) }.into()),
-        IndexOrIdOrCall::IdOrCall(loc, name, maybe_call) => match maybe_call {
-          Some((call_loc, arg)) => {
-            let func = Box::new(mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()));
-            l = mk_expr(call_loc, Call { func, arg, func_ref: dft() }.into());
-          }
-          None => l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()),
-        }
+        IndexOrIdOrCall::Id(loc, name) => 
+          l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()),
+        IndexOrIdOrCall::Call(loc, arg) => 
+          l = mk_expr(loc, Call { func: Box::new(l), arg, func_ref: dft() }.into()),
       }
     }
     l
@@ -454,17 +452,16 @@ impl<'p> Parser<'p> {
 
   #[rule(Term8 -> LBrk Expr RBrk Term8)]
   fn term8_index(l: Token, idx: Expr<'p>, _r: Token, r: Vec<IndexOrIdOrCall<'p>>) -> Vec<IndexOrIdOrCall<'p>> { r.pushed(IndexOrIdOrCall::Index(l.loc(), idx)) }
-  #[rule(Term8 -> Dot Id IdOrCall Term8)]
-  fn term8_id_or_call(_d: Token, name: Token, arg: Option<(Loc, Vec<Expr<'p>>)>, r: Vec<IndexOrIdOrCall<'p>>) -> Vec<IndexOrIdOrCall<'p>> {
-    r.pushed(IndexOrIdOrCall::IdOrCall(name.loc(), name.str(), arg))
+  #[rule(Term8 -> Dot Id Term8)]
+  fn term8_id(_d: Token, name: Token, r: Vec<IndexOrIdOrCall<'p>>) -> Vec<IndexOrIdOrCall<'p>> {
+    r.pushed(IndexOrIdOrCall::Id(name.loc(), name.str()))
+  }
+  #[rule(Term8 -> LPar ExprListOrEmpty RPar Term8)]
+  fn term8_call(l: Token, args: Vec<Expr<'p>>, _r: Token, r: Vec<IndexOrIdOrCall<'p>>) -> Vec<IndexOrIdOrCall<'p>> {
+    r.pushed(IndexOrIdOrCall::Call(l.loc(), args.reversed()))
   }
   #[rule(Term8 ->)]
   fn term8_0() -> Vec<IndexOrIdOrCall<'p>> { vec![] }
-
-  #[rule(IdOrCall -> LPar ExprListOrEmpty RPar)]
-  fn id_or_call_c(l: Token, arg: Vec<Expr<'p>>, _r: Token) -> Option<(Loc, Vec<Expr<'p>>)> { Some((l.loc(), arg.reversed())) }
-  #[rule(IdOrCall ->)]
-  fn id_or_call_i() -> Option<(Loc, Vec<Expr<'p>>)> { None }
 
   #[rule(Expr9 -> IntLit)]
   fn expr9_int(&mut self, i: Token) -> Expr<'p> { mk_int_lit(i.loc(), i.str(), &mut self.error) }
@@ -490,15 +487,9 @@ impl<'p> Parser<'p> {
   fn expr9_instanceof(i: Token, _l: Token, expr: Expr<'p>, _c: Tokenm, name: Token, _r: Token) -> Expr<'p> {
     mk_expr(i.loc(), ClassTest { expr: Box::new(expr), name: name.str(), class: dft() }.into())
   }
-  #[rule(Expr9 -> Id IdOrCall)]
-  fn expr9_id_or_call(name: Token, ioc: Option<(Loc, Vec<Expr<'p>>)>) -> Expr<'p> {
-    match ioc {
-      Some((loc, arg)) => {
-        let func = Box::new(mk_expr(name.loc(), VarSel { owner: None, name: name.str(), var: dft() }.into()));
-        mk_expr(loc, Call { func, arg, func_ref: dft() }.into())
-      }
-      None => mk_expr(name.loc(), VarSel { owner: None, name: name.str(), var: dft() }.into()),
-    }
+  #[rule(Expr9 -> Id)]
+  fn expr9_id_or_call(name: Token) -> Expr<'p> {
+    mk_expr(name.loc(), VarSel { owner: None, name: name.str(), var: dft() }.into())
   }
   #[rule(Expr9 -> New NewClassOrArray)]
   fn expr9_new(n: Token, noa: NewClassOrArray<'p>) -> Expr<'p> {
