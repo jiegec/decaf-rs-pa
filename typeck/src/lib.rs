@@ -6,6 +6,7 @@ use common::{Errors, ErrorKind::*, Ref};
 use syntax::{FuncDef, ClassDef, SynTy, SynTyKind, ScopeOwner, Ty, TyKind, Program, VarDef};
 use typed_arena::Arena;
 use crate::{symbol_pass::SymbolPass, type_pass::TypePass, scope_stack::ScopeStack};
+use std::iter;
 
 #[derive(Default)]
 pub struct TypeCkAlloc<'a> {
@@ -47,7 +48,20 @@ impl<'a> TypeCk<'a> {
       SynTyKind::String => TyKind::String,
       SynTyKind::Void => TyKind::Void,
       SynTyKind::Var => TyKind::Var,
-      SynTyKind::Function => unimplemented!(),
+      SynTyKind::Function => {
+        if let Some(func_ty) = &s.function_type {
+          let (ret_ty, param_ty) : &(_, _)= &func_ty;
+          let mut ret_param_ty = Vec::new();
+          for ty in iter::once(ret_ty)
+            .chain(param_ty.iter()) {
+            ret_param_ty.push(self.ty(ty, false));
+          }
+          let ret_param_ty = self.alloc.ty.alloc_extend(ret_param_ty.into_iter());
+          TyKind::Func(ret_param_ty)
+        } else {
+          TyKind::Error
+        }
+      },
       SynTyKind::Named(name) => if let Some(c) = self.scopes.lookup_class(name) {
         TyKind::Object(Ref(c))
       } else { self.errors.issue(s.loc, NoSuchClass(name)) },
