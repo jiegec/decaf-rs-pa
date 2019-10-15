@@ -569,9 +569,11 @@ impl<'p> Parser<'p> {
     vec![]
   }
 
-  #[rule(TypeList -> SimpleType TypeListRem)]
+  #[rule(TypeList -> Type TypeListRem)]
   fn type_list(ty: SynTy<'p>, mut rem: Vec<SynTy<'p>>) -> Vec<SynTy<'p>> { rem.pushed(ty) }
-  #[rule(TypeListRem -> Comma SimpleType TypeListRem)]
+  #[rule(TypeList ->)]
+  fn type_list0() -> Vec<SynTy<'p>> { vec![] }
+  #[rule(TypeListRem -> Comma Type TypeListRem)]
   fn type_list_rem(_c: Token, ty: SynTy<'p>, mut rem: Vec<SynTy<'p>>) -> Vec<SynTy<'p>> { rem.pushed(ty) }
   #[rule(TypeListRem ->)]
   fn type_list_rem0() -> Vec<SynTy<'p>> { vec![] }
