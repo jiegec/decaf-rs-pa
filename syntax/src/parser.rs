@@ -209,7 +209,7 @@ impl<'p> Parser<'p> {
   fn stmt_return1(r: Token, expr: Expr<'p>, _s: Token) -> Stmt<'p> { mk_stmt(r.loc(), Some(expr).into()) }
   #[rule(Stmt -> Return Semi)]
   fn stmt_return0(r: Token, _s: Token) -> Stmt<'p> { mk_stmt(r.loc(), None.into()) }
-  #[rule(Stmt -> Print LPar ExprList RPar Semi)]
+  #[rule(Stmt -> Print LPar ExprListOrEmpty RPar Semi)]
   fn stmt_print(p: Token, _l: Token, print: Vec<Expr<'p>>, _r: Token, _s: Token) -> Stmt<'p> { mk_stmt(p.loc(), print.into()) }
   #[rule(Stmt -> Break Semi)]
   fn stmt_break(b: Token, _s: Token) -> Stmt<'p> { mk_stmt(b.loc(), Break.into()) }

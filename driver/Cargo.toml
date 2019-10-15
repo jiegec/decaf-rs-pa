@@ -17,6 +17,7 @@ typed-arena = "1.4.1"
 tacvm = { git = "https://github.com/MashPlant/tacvm" }
 colored = "1.8"
 clap = "2"
+ebnf-gen = { git = "https://github.com/jiegec/ebnf-gen" }
 
 [lib]
 path = "src/lib.rs"
@@ -28,3 +29,7 @@ path = "src/cli.rs"
 [[bin]]
 name = "test"
 path = "src/test.rs"
+
+[[bin]]
+name = "fuzz"
+path = "src/fuzz.rs"
