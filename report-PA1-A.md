@@ -2,13 +2,15 @@
 
 ## 工作内容
 
+### 实验部分
+
 PA1-A 实验要求使用 `lalr1` 添加三个新语法的支持：抽象类、局部类型推断和 First-class functions ，需要做这几个方面的修改：
 
 1. 修改 parser 中的产生式，使得它可以支持新的语法
 2. 修改 ast 中的结构，把新的信息保存下来
 3. 修改其他代码以适配 ast 的修改
 
-### 抽象类
+#### 抽象类
 
 需要添加新的产生式：
 
@@ -19,7 +21,7 @@ FuncDef -> Abstract Type Id LPar VarDefListOrEmpty RPar Semi
 
 分别处理抽象类和抽象成员函数。然后在 ast 的 `ClassDef` 中添加 `abstract_: bool`，并允许 `FuncDef` 的 `body` 为空。
 
-### 局部类型推断
+#### 局部类型推断
 
 需要添加新的产生式：
 
@@ -29,9 +31,9 @@ FuncDef -> Abstract Type Id LPar VarDefListOrEmpty RPar Semi
 
 同时添加 `Var` 的类型，在打印时直接输出 `<none>` 。
 
-### First-class functions
+#### First-class functions
 
-#### 匿名函数
+##### 匿名函数
 
 添加产生式：
 
@@ -42,7 +44,7 @@ Expr -> Fun LPar VarDefListOrEmpty RPar Block
 
 为 `Expr` 添加新的 `Lambda` 类型，记录下参数和 `body` 。
 
-#### 函数类型
+##### 函数类型
 
 添加产生式：
 
@@ -55,7 +57,7 @@ TypeList ->
 
 为 `SynTy` 添加新的 `Lambda` 类型，然后记录下参数类型。
 
-#### 调用语法
+##### 调用语法
 
 添加产生式：
 
@@ -64,6 +66,33 @@ Expr -> Expr LPar ExprListOrEmpty RPar
 ```
 
 需要解决 `shift-reduce` 冲突，因为这里也有和 Dangling Else 类似的问题：`map(func)(1)` (见于 testcase/S1/lambda8.decaf) ，此时可以理解成 `(map(func))(1)` 也可以理解成 `map((func)(1))`，设置优先级后保证解析为 `(map(func))(1)` 。
+
+### 额外工作
+
+编写了一个自动化的工具 [jiegec/ebnf-gen](https://github.com/jiegec/ebnf-gen) 来从一个 EBNF 定义随机生成代码，然后交给代码进行解析。遇到一个比较特殊的情况出现了问题：
+
+```
+class Main {
+    void main() {
+        - new int [ this ] [ this ] = this ;
+    }
+}
+```
+
+关键在于这里的第三行：
+
+```
+new int [ this ] [ this ] = this;
+可以这么推导： 
+lValue = Expr;
+Expr [ Expr ] = Expr;
+(- Expr) [ Expr ] = Expr;
+( - new int [ this ]) [ this ] = this;
+```
+
+但考虑到文档里也指定了 '[' 的优先级比 '-' 要高，所以实际代码会解析为 `- ((new int [this])[this]) = this` ，导致解析失败。但似乎不同的框架下 LALR1/LL1 Parser 对此的行为并不一致，有的可以解析出来（按照 `(- (new int [this]) [this]) = this` 解析），有的则会报错。
+
+这就遇到了麻烦：一般情况下，优先级是用来解决 EBNF 二义性问题的，但在这里，又会影响 Parser 的行为。这很令人迷惑。
 
 ## 问题回答
 
