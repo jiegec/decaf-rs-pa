@@ -1,4 +1,5 @@
 use std::io;
+use std::fs;
 use ebnf_gen::Generate;
 
 fn main() -> io::Result<()> {
@@ -13,6 +14,7 @@ fn main() -> io::Result<()> {
             let result = driver::compile(&gen, &alloc, pa.to_cfg());
             if result.is_err() {
                 println!("Generated: {}", gen);
+                fs::write("fuzz.decaf", gen.clone())?;
                 println!("Compiled: {:?}", result);
                 return Ok(());
             }
