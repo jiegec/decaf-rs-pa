@@ -125,7 +125,7 @@ exprList    ::= expr (',' expr)* | ε
 
 ### Q2. 原有框架是如何解决空悬 else (dangling-else) 问题的？限用 100 字符内说明。
 
-`lalr1` 会汇报 `warning: Conflict at prod `MaybeElse -> Else Blocked` and `MaybeElse ->`, both's PS contains term `Else`.` 冲突错误，按照语法要求，`else`与最近的`if`匹配，所以这里选择 shift 而不是 reduce 来解决冲突。
+`lalr1` 有内建的冲突解决方法，在[文档](https://decaf-lang.gitbook.io/decaf-book/rust-kuang-jia-fen-jie-duan-zhi-dao/pa1a-yu-fa-fen-xi-qi-de-zi-dong-gou-zao/lalr1-shi-yong-zhi-dao/jie-jue-chong-tu)中有它的描述。按照语法要求，`else`应该与最近的`if`匹配，这里是一个 shift-reduce 冲突，由于 shift 对应的规则里有 Else ，它的优先级高，所以这里选择 shift 而不是 reduce ，这样冲突就解决了。
 
 ### Q3. PA1-A 在概念上，如下图所示：
 
