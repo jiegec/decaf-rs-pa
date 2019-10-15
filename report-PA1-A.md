@@ -92,7 +92,30 @@ Expr [ Expr ] = Expr;
 
 但考虑到文档里也指定了 '[' 的优先级比 '-' 要高，所以实际代码会解析为 `- ((new int [this])[this]) = this` ，导致解析失败。但似乎不同的框架下 LALR1/LL1 Parser 对此的行为并不一致，有的可以解析出来（按照 `(- (new int [this]) [this]) = this` 解析），有的则会报错。
 
-这就遇到了麻烦：一般情况下，优先级是用来解决 EBNF 二义性问题的，但在这里，又会影响 Parser 的行为。这很令人迷惑。
+类似的例子还有：
+
+```
+class Main {
+    void main() {
+        -a.b = this ;
+    }
+}
+```
+
+这就遇到了麻烦：一般情况下，优先级是用来解决 EBNF 二义性问题的，但在这里，又会影响 Parser 的行为。这很令人迷惑。 
+
+另外，发现了 `decaf-rs` 一处错误：
+
+```
+文法里：
+stmt ::= 'Print' '(' exprList ')' ';'
+它的 exprList 对应代码里的 ExprListOrEmpty：
+exprList    ::= expr (',' expr)* | ε
+不过 parser.rs 写的是 
+  #[rule(Stmt -> Print LPar ExprList RPar Semi)]
+```
+
+
 
 ## 问题回答
 
