@@ -53,6 +53,7 @@ pub fn test_one_caught(i: impl AsRef<Path>, o: impl AsRef<Path>, ans: impl AsRef
   let loc = Arc::new(Mutex::new(None));
   let loc1 = loc.clone();
   panic::set_hook(Box::new(move |panic_info| if let Some(l) = panic_info.location() {
+    println!("{:?}", backtrace::Backtrace::new());
     *loc1.lock().unwrap() = Some(PanicLoc { file: l.file().to_owned(), line: l.line(), col: l.column() });
   }));
   let ret = panic::catch_unwind(panic::AssertUnwindSafe(|| test_one(&i, &o, &ans, pa)))

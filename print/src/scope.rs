@@ -30,7 +30,9 @@ pub fn func_def(f: &FuncDef, p: &mut IndentPrinter) {
   write!(p, "FORMAL SCOPE OF '{}':", f.name).ignore();
   p.indent(|p| {
     show_scope(&f.scope.borrow(), p);
-    block(f.body.as_ref().unwrap(), p);
+    if let Some(body) = f.body.as_ref() {
+      block(body, p);
+    }
   });
 }
 

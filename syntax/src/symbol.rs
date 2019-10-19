@@ -85,7 +85,10 @@ impl fmt::Debug for Symbol<'_> {
       Symbol::Var(v) => write!(f, "{:?} -> variable {}{} : {:?}", v.loc,
                                if v.owner.get().unwrap().is_param() { "@" } else { "" }, v.name, v.ty.get()),
       Symbol::Func(fu) => {
-        write!(f, "{:?} -> {}function {} : ", fu.loc, if fu.static_ { "STATIC " } else { "" }, fu.name)?;
+        write!(f, "{:?} -> {}{}function {} : ", fu.loc,
+          if fu.static_ { "STATIC " } else { "" },
+          if fu.abstract_ { "ABSTRACT " } else { "" },
+          fu.name)?;
         show_func_ty(fu.param.iter().map(|v|v.ty.get()), fu.ret_ty(), false, f)
       }
       Symbol::This(fu) => write!(f, "{:?} -> variable @this : class {}", fu.loc, fu.class.get().unwrap().name),

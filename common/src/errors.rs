@@ -72,6 +72,7 @@ pub enum ErrorKind<'a, Ty> {
   IndexNotInt,
   UnreachableCode,
   NoReturn,
+  AbstractFuncInNonAbstractClass { class: &'a str },
 }
 
 impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
@@ -115,6 +116,7 @@ impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
       IndexNotInt => write!(f, "array subscript must be an integer"),
       UnreachableCode => write!(f, "unreachable code"),
       NoReturn => write!(f, "missing return statement: control reaches end of non-void block"),
+      AbstractFuncInNonAbstractClass { class } => write!(f, "'{}' is not abstract and does not override all abstract methods", class),
     }
   }
 }

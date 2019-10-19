@@ -26,9 +26,17 @@ impl<'a> TypePass<'a> {
     self.scoped(ScopeOwner::Class(c), |s| for f in &c.field {
       if let FieldDef::FuncDef(f) = f {
         s.cur_func = Some(f);
-        let t = s.scoped(ScopeOwner::Param(f), |s| s.block(f.body.as_ref().unwrap()));
-        if t.is_none() && f.ret_ty() != Ty::void() {
-          s.errors.issue(f.body.as_ref().unwrap().loc, ErrorKind::NoReturn)
+        if let Some(body) = f.body.as_ref() {
+          let t = s.scoped(ScopeOwner::Param(f), |s| s.block(body));
+          if t.is_none() && f.ret_ty() != Ty::void() {
+            s.errors.issue(body.loc, ErrorKind::NoReturn)
+          }
+        } else if f.abstract_ {
+          if let Some(cur_class) = s.cur_class {
+            if !cur_class.abstract_ {
+              s.errors.issue(cur_class.loc, ErrorKind::AbstractFuncInNonAbstractClass { class: f.name })
+            }
+          }
         }
       };
     });
