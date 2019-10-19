@@ -45,6 +45,7 @@ fn mk_bin<'p>(l: Expr<'p>, r: Expr<'p>, loc: Loc, op: BinOp) -> Expr<'p> {
 }
 
 #[lalr1(Program)]
+#[log_token]
 #[lex(r##"
 priority = [
   { assoc = 'right', terms = ['Rocket'] },
@@ -309,6 +310,7 @@ impl<'p> Parser<'p> {
     mk_expr(i.loc(), ClassTest { expr: Box::new(e), name: name.str(), class: dft() }.into())
   }
   #[rule(Expr -> LPar Class Id RPar Expr)]
+  #[prec(UMinus)]
   fn expr_cast(_l: Token, _c: Token, name: Token, _r: Token, e: Expr<'p>) -> Expr<'p> {
     mk_expr(e.loc, ClassCast { expr: Box::new(e), name: name.str(), class: dft() }.into())
   }

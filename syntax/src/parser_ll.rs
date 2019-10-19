@@ -433,9 +433,29 @@ impl<'p> Parser<'p> {
   #[rule(Term6 ->)]
   fn term6_0() -> Terms<'p> { vec![] }
 
-  #[rule(Expr7 -> Op7 Expr8)] // not, neg
+  #[rule(Expr7 -> Op7 Expr7)] // not, neg
   fn expr7_op8(o: (Loc, UnOp), r: Expr<'p>) -> Expr<'p> {
     mk_expr(o.0, Unary { op: o.1, r: Box::new(r) }.into())
+  }
+  #[rule(Expr7 -> LPar ParenOrCast)]
+  fn expr7_paren_or_cast(_l: Token, e: Expr<'p>) -> Expr<'p> { e }
+  #[rule(ParenOrCast -> Expr RPar Term8)]
+  fn paren_or_cast_p(mut l: Expr<'p>, _r: Token, ts: Vec<IndexOrIdOrCall<'p>>) -> Expr<'p> {
+    for t in ts.into_iter().rev() {
+      match t {
+        IndexOrIdOrCall::Index(loc, idx) =>
+          l = mk_expr(loc, IndexSel { arr: Box::new(l), idx: Box::new(idx) }.into()),
+        IndexOrIdOrCall::Id(loc, name) => 
+          l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()),
+        IndexOrIdOrCall::Call(loc, arg) => 
+          l = mk_expr(loc, Call { func: Box::new(l), arg, func_ref: dft() }.into()),
+      }
+    }
+    l
+  }
+  #[rule(ParenOrCast -> Class Id RPar Expr7)]
+  fn paren_or_cast_c(_c: Token, name: Token, _r: Token, e: Expr<'p>) -> Expr<'p> {
+    mk_expr(e.loc, ClassCast { name: name.str(), expr: Box::new(e), class: dft() }.into())
   }
   #[rule(Expr7 -> Expr8)]
   fn expr7_8(e: Expr<'p>) -> Expr<'p> { e }
@@ -504,8 +524,6 @@ impl<'p> Parser<'p> {
       NewClassOrArray::NewArray(elem, len) => mk_expr(loc, NewArray { elem, len: Box::new(len) }.into()),
     }
   }
-  #[rule(Expr9 -> LPar ParenOrCast)]
-  fn expr9_paren_or_cast(_l: Token, e: Expr<'p>) -> Expr<'p> { e }
 
   #[rule(NewClassOrArray -> Id LPar RPar)]
   fn new_class_or_array_c(name: Token, _l: Token, _r: Token) -> NewClassOrArray<'p> {
@@ -517,12 +535,6 @@ impl<'p> Parser<'p> {
     NewClassOrArray::NewArray(ty, dim_len.1)
   }
 
-  #[rule(ParenOrCast -> Expr RPar)]
-  fn paren_or_cast_p(e: Expr<'p>, _r: Token) -> Expr<'p> { e }
-  #[rule(ParenOrCast -> Class Id RPar Expr9)]
-  fn paren_or_cast_c(_c: Token, name: Token, _r: Token, e: Expr<'p>) -> Expr<'p> {
-    mk_expr(e.loc, ClassCast { name: name.str(), expr: Box::new(e), class: dft() }.into())
-  }
 
   #[rule(NewArrayRem -> RBrk LBrk NewArrayRem)]
   fn new_array_rem(_r: Token, l: Token, mut dim_len: (u32, Expr<'p>)) -> (u32, Expr<'p>) { (dim_len.0 += 1, dim_len).1 }
