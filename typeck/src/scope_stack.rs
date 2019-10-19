@@ -1,5 +1,6 @@
 use common::Loc;
 use syntax::{ScopeOwner, Symbol, ClassDef};
+use std::collections::HashMap;
 
 pub(crate) struct ScopeStack<'a> {
   pub stack: Vec<ScopeOwner<'a>>,
@@ -18,6 +19,21 @@ impl<'a> ScopeStack<'a> {
       self.stack.last().unwrap().scope().get(name)
         .map(|&symbol| (symbol, *self.stack.last().unwrap()))
     }
+  }
+
+  // Return a map of (function_name, abstract_)
+  pub fn collect_member_fun(&self) -> HashMap<&'a str, bool> {
+    let mut res = HashMap::new();
+    for owner in self.stack.iter() {
+      for (_, symbol) in owner.scope().iter() {
+        if let Symbol::Func(func) = symbol {
+          if !func.static_ {
+            res.insert(func.name, func.abstract_);
+          }
+        }
+      }
+    }
+    res
   }
 
   pub fn lookup_before(&self, name: &'a str, loc: Loc) -> Option<Symbol<'a>> {

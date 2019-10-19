@@ -31,12 +31,6 @@ impl<'a> TypePass<'a> {
           if t.is_none() && f.ret_ty() != Ty::void() {
             s.errors.issue(body.loc, ErrorKind::NoReturn)
           }
-        } else if f.abstract_ {
-          if let Some(cur_class) = s.cur_class {
-            if !cur_class.abstract_ {
-              s.errors.issue(cur_class.loc, ErrorKind::AbstractFuncInNonAbstractClass { class: f.name })
-            }
-          }
         }
       };
     });

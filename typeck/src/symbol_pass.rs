@@ -61,7 +61,10 @@ impl<'a> SymbolPass<'a> {
         }
       }
       let mut checked = HashSet::new();
-      for c in &p.class { s.check_override(c, &mut checked); }
+      for c in &p.class {
+        s.check_override(c, &mut checked);
+        s.check_abstract(c);
+      }
       s.check_main(p);
     });
   }
@@ -165,6 +168,17 @@ impl<'a> SymbolPass<'a> {
         });
       });
     }
+  }
+
+  fn check_abstract(&mut self, c: &'a ClassDef<'a>) {
+    self.scoped(ScopeOwner::Class(c), |s| {
+      let members = s.scopes.collect_member_fun();
+      for (_name, abstract_) in members.iter() {
+        if *abstract_ && !c.abstract_ {
+          return s.errors.issue(c.loc, AbstractFuncInNonAbstractClass { class: c.name })
+        }
+      }
+    });
   }
 
   fn check_main(&mut self, p: &Program) {
