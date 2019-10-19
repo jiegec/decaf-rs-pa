@@ -1,4 +1,4 @@
-use crate::{Block, ClassDef, FuncDef, VarDef, Program, Ty, show_func_ty};
+use crate::{Block, Lambda, ClassDef, FuncDef, VarDef, Program, Ty, show_func_ty};
 use common::{Loc, HashMap};
 use std::{cell::{RefMut, Ref}, fmt};
 
@@ -14,6 +14,7 @@ pub enum Symbol<'a> {
 
 #[derive(Copy, Clone)]
 pub enum ScopeOwner<'a> {
+  Lambda(&'a Lambda<'a>),
   Local(&'a Block<'a>),
   Param(&'a FuncDef<'a>),
   Class(&'a ClassDef<'a>),
@@ -24,12 +25,24 @@ impl<'a> ScopeOwner<'a> {
   // boilerplate code...
   pub fn scope(&self) -> Ref<'a, Scope<'a>> {
     use ScopeOwner::*;
-    match self { Local(x) => x.scope.borrow(), Param(x) => x.scope.borrow(), Class(x) => x.scope.borrow(), Global(x) => x.scope.borrow(), }
+    match self {
+      Lambda(x) => x.scope.borrow(),
+      Local(x) => x.scope.borrow(),
+      Param(x) => x.scope.borrow(),
+      Class(x) => x.scope.borrow(),
+      Global(x) => x.scope.borrow(),
+    }
   }
 
   pub fn scope_mut(&self) -> RefMut<'a, Scope<'a>> {
     use ScopeOwner::*;
-    match self { Local(x) => x.scope.borrow_mut(), Param(x) => x.scope.borrow_mut(), Class(x) => x.scope.borrow_mut(), Global(x) => x.scope.borrow_mut(), }
+    match self {
+      Lambda(x) => x.scope.borrow_mut(),
+      Local(x) => x.scope.borrow_mut(),
+      Param(x) => x.scope.borrow_mut(),
+      Class(x) => x.scope.borrow_mut(),
+      Global(x) => x.scope.borrow_mut(),
+    }
   }
 
   pub fn is_local(&self) -> bool { if let ScopeOwner::Local(_) = self { true } else { false } }

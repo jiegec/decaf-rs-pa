@@ -3,6 +3,7 @@ use common::{ErrorKind::*, Loc, LENGTH, BinOp, UnOp, ErrorKind, Ref};
 use syntax::ast::*;
 use syntax::{ScopeOwner, Symbol, ty::*};
 use std::ops::{Deref, DerefMut};
+use either::Either;
 
 pub(crate) struct TypePass<'a>(pub TypeCk<'a>);
 
@@ -26,7 +27,7 @@ impl<'a> TypePass<'a> {
       if let FieldDef::FuncDef(f) = f {
         s.cur_func = Some(f);
         let t = s.scoped(ScopeOwner::Param(f), |s| s.block(f.body.as_ref().unwrap()));
-        if !t && f.ret_ty() != Ty::void() {
+        if t.is_none() && f.ret_ty() != Ty::void() {
           s.errors.issue(f.body.as_ref().unwrap().loc, ErrorKind::NoReturn)
         }
       };
@@ -37,8 +38,8 @@ impl<'a> TypePass<'a> {
   // it has a return yes => block has, it is a Break => no
   // there is no such stmt => no
   // in addition, if this stmt is not the last stmt, an UnreachableCode error should be reported
-  fn block(&mut self, b: &'a Block<'a>) -> bool {
-    let mut ret = false;
+  fn block(&mut self, b: &'a Block<'a>) -> Option<Ty<'a>> {
+    let mut ret = None;
     let (mut ended, mut issued) = (false, false);
     self.scoped(ScopeOwner::Local(b), |s| for st in &b.stmt {
       if ended && !issued {
@@ -47,20 +48,20 @@ impl<'a> TypePass<'a> {
       }
       let t = s.stmt(st);
       if !ended { ret = t; }
-      ended = ret || match st.kind { StmtKind::Break(_) => true, _ => false };
+      ended = ret.is_some() || match st.kind { StmtKind::Break(_) => true, _ => false };
     });
     ret
   }
 
   // return whether this stmt has a return value
-  fn stmt(&mut self, s: &'a Stmt<'a>) -> bool {
+  fn stmt(&mut self, s: &'a Stmt<'a>) -> Option<Ty<'a>> {
     match &s.kind {
       StmtKind::Assign(a) => {
         let (l, r) = (self.expr(&a.dst), self.expr(&a.src));
         if l.is_func() || !r.assignable_to(l) {
           self.errors.issue(s.loc, IncompatibleBinary { l, op: "=", r })
         }
-        false
+        None
       }
       StmtKind::LocalVarDef(v) => {
         self.cur_var_def = Some(v);
@@ -75,32 +76,37 @@ impl<'a> TypePass<'a> {
           }
         }
         self.cur_var_def = None;
-        false
+        None
       }
       StmtKind::ExprEval(e) => {
         self.expr(e);
-        false
+        None
       }
-      StmtKind::Skip(_) => false,
+      StmtKind::Skip(_) => None,
       StmtKind::If(i) => {
         self.check_bool(&i.cond);
         let s1 = self.block(&i.on_true);
-        let s2 = if let Some(of) = &i.on_false { self.block(of) } else { false };
-        s1 && s2
+        let s2 = if let Some(of) = &i.on_false { self.block(of) } else { None };
+        // TODO: find common ancestor
+        if s1.is_some() && s2.is_some() {
+          s1
+        } else {
+          None
+        }
       }
       StmtKind::While(w) => {
         self.check_bool(&w.cond);
         self.loop_cnt += 1;
         self.block(&w.body);
         self.loop_cnt -= 1;
-        false
+        None
       }
       StmtKind::For(f) => self.scoped(ScopeOwner::Local(&f.body), |s| {
         s.stmt(&f.init);
         s.check_bool(&f.cond);
         s.stmt(&f.update);
         for st in &f.body.stmt { s.stmt(st); } // not calling block(), because the scope is already opened
-        false
+        None
       }),
       StmtKind::Return(r) => {
         let expect = self.cur_func.unwrap().ret_ty();
@@ -109,12 +115,12 @@ impl<'a> TypePass<'a> {
           if !actual.assignable_to(expect) {
             self.errors.issue(s.loc, ReturnMismatch { actual, expect })
           }
-          true
+          Some(actual)
         } else {
           if expect != Ty::void() {
             self.errors.issue(s.loc, ReturnMismatch { actual: Ty::void(), expect })
           }
-          false
+          None
         }
       }
       StmtKind::Print(p) => {
@@ -124,11 +130,11 @@ impl<'a> TypePass<'a> {
             self.errors.issue(e.loc, BadPrintArg { loc: i as u32 + 1, ty })
           }
         }
-        false
+        None
       }
       StmtKind::Break(_) => {
         if self.loop_cnt == 0 { self.errors.issue(s.loc, BreakOutOfLoop) }
-        false
+        None
       }
       StmtKind::Block(b) => self.block(b),
     }
@@ -200,7 +206,16 @@ impl<'a> TypePass<'a> {
           None => self.errors.issue(e.loc, NoSuchClass(c.name)),
         }
       }
-      Lambda(_) => unimplemented!(),
+      Lambda(l) => self.scoped(ScopeOwner::Lambda(&l), |s| {
+        match &l.body {
+          Either::Left(expr) => {
+            s.expr(&expr)
+          },
+          Either::Right(block) => {
+            s.block(&block).unwrap_or(Ty::void())
+          },
+        }
+      }),
     };
     e.ty.set(ty);
     ty

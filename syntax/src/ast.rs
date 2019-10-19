@@ -248,4 +248,5 @@ pub struct ReadLine;
 pub struct Lambda<'a> {
   pub param: Vec<&'a VarDef<'a>>,
   pub body: Either<Box<Expr<'a>>, Box<Block<'a>>>,
+  pub scope: RefCell<Scope<'a>>,
 }
