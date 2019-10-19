@@ -170,6 +170,9 @@ impl<'a> TypePass<'a> {
       } else { self.errors.issue(e.loc, ThisInStatic) }
       NewClass(n) => match self.scopes.lookup_class(n.name) {
         Some(c) => {
+          if c.abstract_ {
+            self.errors.issue(e.loc, CannotInstantiateAbstractClass { class: c.name })
+          }
           n.class.set(Some(c));
           Ty::mk_obj(c)
         }
