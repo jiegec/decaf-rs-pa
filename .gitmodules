@@ -1,0 +1,3 @@
+[submodule "testcase"]
+	path = testcase
+	url = git@github.com:decaf-lang/decaf-2019-TestCases.git
