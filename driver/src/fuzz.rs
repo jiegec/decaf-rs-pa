@@ -9,7 +9,7 @@ fn main() -> io::Result<()> {
         let ebnf = ebnf_gen::work(code, &alloc);
         if let Ok(ebnf) = ebnf {
             let gen = ebnf.generate(&ebnf);
-            let pa = driver::Pa::Pa1a;
+            let pa = driver::Pa::Pa1b;
             let alloc = driver::Alloc::default();
             let result = driver::compile(&gen, &alloc, pa.to_cfg());
             if result.is_err() {
