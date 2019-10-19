@@ -209,7 +209,7 @@ impl<'p> Parser<'p> {
   fn stmt_return1(r: Token, expr: Expr<'p>, _s: Token) -> Stmt<'p> { mk_stmt(r.loc(), Some(expr).into()) }
   #[rule(Stmt -> Return Semi)]
   fn stmt_return0(r: Token, _s: Token) -> Stmt<'p> { mk_stmt(r.loc(), None.into()) }
-  #[rule(Stmt -> Print LPar ExprList RPar Semi)]
+  #[rule(Stmt -> Print LPar ExprListOrEmpty RPar Semi)]
   fn stmt_print(p: Token, _l: Token, print: Vec<Expr<'p>>, _r: Token, _s: Token) -> Stmt<'p> { mk_stmt(p.loc(), print.into()) }
   #[rule(Stmt -> Break Semi)]
   fn stmt_break(b: Token, _s: Token) -> Stmt<'p> { mk_stmt(b.loc(), Break.into()) }
@@ -309,6 +309,7 @@ impl<'p> Parser<'p> {
     mk_expr(i.loc(), ClassTest { expr: Box::new(e), name: name.str(), class: dft() }.into())
   }
   #[rule(Expr -> LPar Class Id RPar Expr)]
+  #[prec(UMinus)]
   fn expr_cast(_l: Token, _c: Token, name: Token, _r: Token, e: Expr<'p>) -> Expr<'p> {
     mk_expr(e.loc, ClassCast { expr: Box::new(e), name: name.str(), class: dft() }.into())
   }

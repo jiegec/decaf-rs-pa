@@ -2,7 +2,7 @@ use std::{io::{self, BufReader, BufWriter}, fs::{self, File}, fmt, panic, path::
 use colored::*;
 use crate::{CompileCfg, Parser, Stage, Alloc};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Pa { Pa1a, Pa1b, Pa2, Pa3, Pa4, Pa5 }
 
 impl Pa {
@@ -27,6 +27,7 @@ const SPIM_INFO_LINE: usize = 1;
 // `folder` should be the path of folder containing `pa_path` and other tools
 // `pa_path` should be relevant to `folder`, i.e., `folder`/`pa_path` is the real path to pa folder
 pub fn test_all(path: impl AsRef<Path>, pa: Pa) -> io::Result<Vec<TestResult>> {
+  println!("Testing {:?} for {}", pa, path.as_ref().display());
   // make color work properly on windows(powershell)
   // if it still doesn't work, or you simply dislike the color, add `colored::control::set_override(false);` before calling `test_all`
   #[cfg(target_os = "windows")] let _ = control::set_virtual_terminal(true);
