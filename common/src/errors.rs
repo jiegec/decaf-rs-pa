@@ -73,6 +73,7 @@ pub enum ErrorKind<'a, Ty> {
   UnreachableCode,
   NoReturn,
   AbstractFuncInNonAbstractClass { class: &'a str },
+  CannotInstantiateAbstractClass { class: &'a str },
 }
 
 impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
@@ -117,6 +118,7 @@ impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
       UnreachableCode => write!(f, "unreachable code"),
       NoReturn => write!(f, "missing return statement: control reaches end of non-void block"),
       AbstractFuncInNonAbstractClass { class } => write!(f, "'{}' is not abstract and does not override all abstract methods", class),
+      CannotInstantiateAbstractClass { class } => write!(f, "Cannot instantiate abstract class '{}'", class),
     }
   }
 }
