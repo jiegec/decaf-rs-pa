@@ -45,7 +45,6 @@ fn mk_bin<'p>(l: Expr<'p>, r: Expr<'p>, loc: Loc, op: BinOp) -> Expr<'p> {
 }
 
 #[lalr1(Program)]
-#[log_token]
 #[lex(r##"
 priority = [
   { assoc = 'right', terms = ['Rocket'] },
