@@ -1,4 +1,4 @@
-use crate::{TypeCk, TypeCkTrait};
+use crate::{TypeCk, FuncInfo, TypeCkTrait};
 use common::{ErrorKind::*, Loc, LENGTH, BinOp, UnOp, ErrorKind, Ref};
 use syntax::ast::*;
 use syntax::{ScopeOwner, Symbol, ty::*};
@@ -26,7 +26,11 @@ impl<'a> TypePass<'a> {
     self.cur_class = Some(c);
     self.scoped(ScopeOwner::Class(c), |s| for f in &c.field {
       if let FieldDef::FuncDef(f) = f {
-        s.cur_func = Some(f);
+        s.cur_func_info = Some(FuncInfo {
+          static_: f.static_,
+          ret_ty: f.ret_ty(),
+          name: f.name,
+        });
         if let Some(body) = f.body.as_ref() {
           let t = s.scoped(ScopeOwner::Param(f), |s| s.block(body));
           if t.is_none() && f.ret_ty() != Ty::void() {
@@ -112,7 +116,7 @@ impl<'a> TypePass<'a> {
         None
       }),
       StmtKind::Return(r) => {
-        let expect = self.cur_func.unwrap().ret_ty();
+        let expect = self.cur_func_info.as_ref().unwrap().ret_ty;
         if let Some(e) = r {
           let actual = self.expr(e);
           if !actual.assignable_to(expect) {
@@ -166,7 +170,7 @@ impl<'a> TypePass<'a> {
       Call(c) => self.call(c, e.loc),
       Unary(u) => self.unary(u, e.loc),
       Binary(b) => self.binary(b, e.loc),
-      This(_) => if !self.cur_func.unwrap().static_ {
+      This(_) => if !self.cur_func_info.as_ref().unwrap().static_ {
         Ty::mk_obj(self.cur_class.unwrap())
       } else { self.errors.issue(e.loc, ThisInStatic) }
       NewClass(n) => match self.scopes.lookup_class(n.name) {
@@ -213,6 +217,12 @@ impl<'a> TypePass<'a> {
         }
       }
       Lambda(l) => self.scoped(ScopeOwner::Lambda(&l), |s| {
+        // save upper function func info
+        let old_cur_func_info = s.cur_func_info.replace(FuncInfo {
+          name: "lambda",
+          static_: false,
+          ret_ty: Ty::mk_var()
+        });
         let ret_ty = match &l.body {
           Either::Left(expr) => {
             s.expr(&expr)
@@ -226,6 +236,8 @@ impl<'a> TypePass<'a> {
             v.ty.get()
           }));
         let ret_param_ty = s.alloc.ty.alloc_extend(ret_param_ty);
+        // restore
+        s.cur_func_info = old_cur_func_info;
         Ty::mk_lambda(l, ret_param_ty)
       }),
     };
@@ -306,9 +318,10 @@ impl<'a> TypePass<'a> {
             Symbol::Var(var) => {
               v.var.set(Some(var));
               if var.owner.get().unwrap().is_class() {
-                let cur = self.cur_func.unwrap();
+                let cur = self.cur_func_info.as_ref().unwrap();
                 if cur.static_ {
-                  self.errors.issue(loc, RefInStatic { field: v.name, func: cur.name })
+                  let name = cur.name;
+                  self.errors.issue(loc, RefInStatic { field: v.name, func: name })
                 }
               }
               var.ty.get()
@@ -372,7 +385,6 @@ impl<'a> TypePass<'a> {
   }
 
   fn check_normal_call(&mut self, v: &'a VarSel<'a>, c: &'a Call<'a>, owner: Ty<'a>, symbol: Symbol<'a>, loc: Loc) -> Ty<'a> {
-    println!("check {}", symbol.name());
     match symbol {
       Symbol::Var(v) => {
         let ty = v.ty.get();
@@ -395,9 +407,10 @@ impl<'a> TypePass<'a> {
             self.errors.issue(loc, BadFieldAccess { name: v.name, owner })
           }
           None => {
-            let cur = self.cur_func.unwrap();
+            let cur = self.cur_func_info.as_ref().unwrap();
             if cur.static_ && !f.static_ {
-              self.errors.issue(loc, RefInStatic { field: f.name, func: cur.name })
+              let name = cur.name;
+              self.errors.issue(loc, RefInStatic { field: f.name, func: name })
             }
           }
         };

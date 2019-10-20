@@ -3,7 +3,7 @@ mod symbol_pass;
 mod type_pass;
 
 use common::{Errors, ErrorKind::*, Ref};
-use syntax::{FuncDef, ClassDef, SynTy, SynTyKind, ScopeOwner, Ty, TyKind, Program, VarDef};
+use syntax::{ClassDef, SynTy, SynTyKind, ScopeOwner, Ty, TyKind, Program, VarDef};
 use typed_arena::Arena;
 use crate::{symbol_pass::SymbolPass, type_pass::TypePass, scope_stack::ScopeStack};
 use std::iter;
@@ -13,6 +13,13 @@ pub struct TypeCkAlloc<'a> {
   pub ty: Arena<Ty<'a>>,
 }
 
+#[derive(Clone)]
+struct FuncInfo<'a> {
+  pub name: &'a str,
+  pub static_: bool,
+  pub ret_ty: Ty<'a>
+}
+
 pub(crate) struct TypeCk<'a> {
   pub errors: Errors<'a, Ty<'a>>,
   pub scopes: ScopeStack<'a>,
@@ -20,7 +27,7 @@ pub(crate) struct TypeCk<'a> {
   // `cur_used` is only used to determine 2 kinds of errors:
   // Class.var (cur_used == true) => BadFieldAssess; Class (cur_used == false) => UndeclaredVar
   pub cur_used: bool,
-  pub cur_func: Option<&'a FuncDef<'a>>,
+  pub cur_func_info: Option<FuncInfo<'a>>,
   pub cur_class: Option<&'a ClassDef<'a>>,
   // actually only use cur_var_def's loc
   // if cur_var_def is Some, wil use it's loc to search for symbol in TypePass::var_sel
@@ -30,7 +37,7 @@ pub(crate) struct TypeCk<'a> {
 }
 
 pub fn work<'a>(p: &'a Program<'a>, alloc: &'a TypeCkAlloc<'a>) -> Result<(), Errors<'a, Ty<'a>>> {
-  let mut s = SymbolPass(TypeCk { errors: Errors(vec![]), scopes: ScopeStack { stack: vec![] }, loop_cnt: 0, cur_used: false, cur_func: None, cur_class: None, cur_var_def: None, alloc });
+  let mut s = SymbolPass(TypeCk { errors: Errors(vec![]), scopes: ScopeStack { stack: vec![] }, loop_cnt: 0, cur_used: false, cur_func_info: None, cur_class: None, cur_var_def: None, alloc });
   s.program(p);
   if !s.errors.0.is_empty() { return Err(s.0.errors.sorted()); }
   let mut t = TypePass(s.0);

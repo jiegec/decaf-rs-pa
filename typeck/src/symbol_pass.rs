@@ -2,6 +2,7 @@ use crate::{TypeCk, TypeCkTrait};
 use common::{ErrorKind::*, Ref, MAIN_CLASS, MAIN_METHOD, NO_LOC, HashMap, HashSet};
 use syntax::{ast::*, ScopeOwner, Symbol, Ty};
 use std::{mem::discriminant, ops::{Deref, DerefMut}, iter};
+use either::Either;
 
 pub(crate) struct SymbolPass<'a>(pub TypeCk<'a>);
 
@@ -116,6 +117,9 @@ impl<'a> SymbolPass<'a> {
     if ok {
       v.owner.set(Some(self.scopes.cur_owner()));
       self.scopes.declare(Symbol::Var(v));
+      if let Some((_loc, expr)) = &v.init {
+        self.expr(&expr);
+      }
     }
   }
 
@@ -162,8 +166,15 @@ impl<'a> SymbolPass<'a> {
     match &e.kind {
       Lambda(l) => self.scoped(ScopeOwner::Lambda(&l), |s| {
         for param in l.param.iter() {
-          param.owner.set(Some(ScopeOwner::Lambda(&l)));
-          s.scopes.declare(Symbol::Var(param));
+          s.var_def(param);
+        }
+        match &l.body {
+          Either::Left(expr) => {
+            s.expr(expr)
+          },
+          Either::Right(block) => {
+            s.block(block)
+          }
         }
       }),
       _ => {}
