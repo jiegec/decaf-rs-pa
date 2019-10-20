@@ -82,6 +82,7 @@ impl<'a> Ty<'a> {
   pub fn mk_class(c: &'a ClassDef<'a>) -> Ty<'a> { Ty { arr: 0, kind: TyKind::Class(Ref(c)) } }
   pub fn mk_func(f: &'a FuncDef<'a>) -> Ty<'a> { Ty { arr: 0, kind: TyKind::Func(f.ret_param_ty.get().unwrap()) } }
   pub fn mk_lambda(f: &'a Lambda<'a>, ret_param_ty: &'a [Ty<'a>]) -> Ty<'a> { Ty { arr: 0, kind: TyKind::Func(ret_param_ty) } }
+  pub fn mk_var() -> Ty<'a> { Ty { arr: 0, kind: TyKind::Var } }
 
   pub fn is_arr(&self) -> bool { self.arr > 0 }
   pub fn is_func(&self) -> bool { self.arr == 0 && if let TyKind::Func(_) = self.kind { true } else { false } }
