@@ -4,6 +4,7 @@ use syntax::ast::*;
 use syntax::{ScopeOwner, Symbol, ty::*};
 use std::ops::{Deref, DerefMut};
 use either::Either;
+use std::iter;
 
 pub(crate) struct TypePass<'a>(pub TypeCk<'a>);
 
@@ -212,14 +213,20 @@ impl<'a> TypePass<'a> {
         }
       }
       Lambda(l) => self.scoped(ScopeOwner::Lambda(&l), |s| {
-        match &l.body {
+        let ret_ty = match &l.body {
           Either::Left(expr) => {
             s.expr(&expr)
           },
           Either::Right(block) => {
             s.block(&block).unwrap_or(Ty::void())
           },
-        }
+        };
+        let ret_param_ty = iter::once(ret_ty)
+          .chain(l.param.iter().map(|v| {
+            v.ty.get()
+          }));
+        let ret_param_ty = s.alloc.ty.alloc_extend(ret_param_ty);
+        Ty::mk_lambda(l, ret_param_ty)
       }),
     };
     e.ty.set(ty);
@@ -346,7 +353,7 @@ impl<'a> TypePass<'a> {
       }
       None => {
         let cur = self.cur_class.unwrap();
-        if let Some(symbol) = cur.lookup(v.name) {
+        if let Some((symbol, _owner)) = self.scopes.lookup(v.name, true) {
           self.check_normal_call(v, c, Ty::mk_obj(cur), symbol, loc)
         } else {
           self.errors.issue(loc, NoSuchField { name: v.name, owner: Ty::mk_obj(cur) })
@@ -365,8 +372,22 @@ impl<'a> TypePass<'a> {
   }
 
   fn check_normal_call(&mut self, v: &'a VarSel<'a>, c: &'a Call<'a>, owner: Ty<'a>, symbol: Symbol<'a>, loc: Loc) -> Ty<'a> {
+    println!("check {}", symbol.name());
     match symbol {
+      Symbol::Var(v) => {
+        let ty = v.ty.get();
+        match ty.kind {
+          TyKind::Func(func) => {
+            // ret ty
+            func[0]
+          }
+          _ => {
+            self.errors.issue(loc, NotFunc { name: v.name, owner })
+          }
+        }
+      },
       Symbol::Func(f) => {
+        println!("func");
         c.func_ref.set(Some(f));
         match &v.owner {
           Some(_) => if owner.is_class() && !f.static_ {

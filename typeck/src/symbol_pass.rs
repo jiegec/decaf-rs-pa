@@ -125,6 +125,13 @@ impl<'a> SymbolPass<'a> {
 
   fn stmt(&mut self, s: &'a Stmt<'a>) {
     match &s.kind {
+      StmtKind::Assign(a) => { 
+        self.expr(&a.dst);
+        self.expr(&a.src);
+      },
+      StmtKind::ExprEval(e) => {
+        self.expr(e);
+      }
       StmtKind::LocalVarDef(v) => self.var_def(v),
       StmtKind::If(i) => {
         self.block(&i.on_true);
@@ -136,8 +143,31 @@ impl<'a> SymbolPass<'a> {
         for st in &f.body.stmt { s.stmt(st); }
       }),
       StmtKind::Block(b) => self.block(b),
+      StmtKind::Return(r) => {
+        if let Some(e) = r {
+          self.expr(e);
+        }
+      },
+      StmtKind::Print(p) => {
+        for e in p.iter() {
+          self.expr(e);
+        }
+      }
       _ => {}
     };
+  }
+
+  fn expr(&mut self, e: &'a Expr<'a>) {
+    use ExprKind::*;
+    match &e.kind {
+      Lambda(l) => self.scoped(ScopeOwner::Lambda(&l), |s| {
+        for param in l.param.iter() {
+          param.owner.set(Some(ScopeOwner::Lambda(&l)));
+          s.scopes.declare(Symbol::Var(param));
+        }
+      }),
+      _ => {}
+    }
   }
 }
 
