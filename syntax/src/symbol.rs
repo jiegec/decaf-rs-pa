@@ -12,6 +12,41 @@ pub enum Symbol<'a> {
   Class(&'a ClassDef<'a>),
 }
 
+
+impl<'a> Symbol<'a> {
+  pub fn name(&self) -> &'a str {
+    match self {
+      Symbol::Var(v) => v.name,
+      Symbol::Func(f) => f.name,
+      Symbol::This(_) => "this",
+      Symbol::Class(c) => c.name,
+    }
+  }
+
+  pub fn loc(&self) -> Loc {
+    match self {
+      Symbol::Var(v) => v.loc,
+      Symbol::Func(f) | Symbol::This(f) => f.loc,
+      Symbol::Class(c) => c.loc,
+    }
+  }
+
+  // for symbol This & Class, will return the type of their class object
+  pub fn ty(&self) -> Ty<'a> {
+    match self {
+      Symbol::Var(v) => v.ty.get(),
+      Symbol::Func(f) => Ty::mk_func(f),
+      Symbol::This(f) => Ty::mk_obj(f.class.get().unwrap()),
+      Symbol::Class(c) => Ty::mk_obj(c),
+    }
+  }
+
+  pub fn is_var(&self) -> bool { if let Symbol::Var(_) = self { true } else { false } }
+  pub fn is_func(&self) -> bool { if let Symbol::Func(_) = self { true } else { false } }
+  pub fn is_this(&self) -> bool { if let Symbol::This(_) = self { true } else { false } }
+  pub fn is_class(&self) -> bool { if let Symbol::Class(_) = self { true } else { false } }
+}
+
 #[derive(Copy, Clone)]
 pub enum ScopeOwner<'a> {
   Lambda(&'a Lambda<'a>),
@@ -48,35 +83,7 @@ impl<'a> ScopeOwner<'a> {
   pub fn is_local(&self) -> bool { if let ScopeOwner::Local(_) = self { true } else { false } }
   pub fn is_param(&self) -> bool { if let ScopeOwner::Param(_) = self { true } else { false } }
   pub fn is_class(&self) -> bool { if let ScopeOwner::Class(_) = self { true } else { false } }
-}
-
-impl<'a> Symbol<'a> {
-  pub fn name(&self) -> &'a str {
-    match self {
-      Symbol::Var(v) => v.name,
-      Symbol::Func(f) => f.name,
-      Symbol::This(_) => "this",
-      Symbol::Class(c) => c.name,
-    }
-  }
-
-  pub fn loc(&self) -> Loc {
-    match self {
-      Symbol::Var(v) => v.loc,
-      Symbol::Func(f) | Symbol::This(f) => f.loc,
-      Symbol::Class(c) => c.loc,
-    }
-  }
-
-  // for symbol This & Class, will return the type of their class object
-  pub fn ty(&self) -> Ty<'a> {
-    match self {
-      Symbol::Var(v) => v.ty.get(),
-      Symbol::Func(f) => Ty::mk_func(f),
-      Symbol::This(f) => Ty::mk_obj(f.class.get().unwrap()),
-      Symbol::Class(c) => Ty::mk_obj(c),
-    }
-  }
+  pub fn is_global(&self) -> bool { if let ScopeOwner::Global(_) = self { true } else { false } }
 }
 
 impl fmt::Debug for Symbol<'_> {

@@ -366,7 +366,7 @@ impl<'a> TypePass<'a> {
       }
       None => {
         let cur = self.cur_class.unwrap();
-        if let Some((symbol, _owner)) = self.scopes.lookup(v.name, true) {
+        if let Some((symbol, _owner)) = self.scopes.lookup(v.name) {
           self.check_normal_call(v, c, Ty::mk_obj(cur), symbol, loc)
         } else {
           self.errors.issue(loc, NoSuchField { name: v.name, owner: Ty::mk_obj(cur) })
