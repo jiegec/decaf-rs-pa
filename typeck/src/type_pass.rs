@@ -399,7 +399,6 @@ impl<'a> TypePass<'a> {
         }
       },
       Symbol::Func(f) => {
-        println!("func");
         c.func_ref.set(Some(f));
         match &v.owner {
           Some(_) => if owner.is_class() && !f.static_ {
