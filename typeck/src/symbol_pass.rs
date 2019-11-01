@@ -58,6 +58,7 @@ impl<'a> SymbolPass<'a> {
     for c in &p.class {
       self.class_def(c, &mut checked);
       if c.name == MAIN_CLASS { p.main.set(Some(c)); }
+      self.check_abstract(c);
     }
     if p.main.get().map(|c| match c.scope.borrow().get(MAIN_METHOD) {
       Some(Symbol::Func(main)) if main.static_ && main.param.is_empty() && main.ret_ty() == Ty::void() => false, _ => true
