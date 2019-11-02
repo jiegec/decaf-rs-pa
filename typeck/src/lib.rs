@@ -7,7 +7,6 @@ use syntax::{ClassDef, SynTy, SynTyKind, ScopeOwner, Ty, TyKind, Program, VarDef
 use typed_arena::Arena;
 use std::ops::{Deref, DerefMut};
 use crate::{symbol_pass::SymbolPass, type_pass::TypePass, scope_stack::ScopeStack};
-use std::iter;
 
 // if you want to alloc other types, you can add them to TypeCkAlloc
 #[derive(Default)]
@@ -52,6 +51,7 @@ struct TypeCk<'a> {
 impl<'a> TypeCk<'a> {
   // is_arr can be helpful if you want the type of array while only having its element type (to avoid cloning other fields)
   fn ty(&mut self, s: &SynTy<'a>, is_arr: bool) -> Ty<'a> {
+    let mut void_arg_pos = None;
     let kind = match &s.kind {
       SynTyKind::Int => TyKind::Int,
       SynTyKind::Bool => TyKind::Bool,
@@ -62,10 +62,15 @@ impl<'a> TypeCk<'a> {
         if let Some(func_ty) = &s.function_type {
           let (ret_ty, param_ty) : &(_, _)= &func_ty;
           let mut ret_param_ty = Vec::new();
-          for ty in iter::once(ret_ty)
-            .chain(param_ty.iter()) {
+          ret_param_ty.push(self.ty(ret_ty, false));
+          for ty in param_ty.iter() {
+            if ty.kind == SynTyKind::Void {
+              void_arg_pos = Some(ty.loc);
+              break;
+            }
             ret_param_ty.push(self.ty(ty, false));
           }
+
           let ret_param_ty = self.alloc.ty.alloc_extend(ret_param_ty.into_iter());
           TyKind::Func(ret_param_ty)
         } else {
@@ -78,6 +83,7 @@ impl<'a> TypeCk<'a> {
     };
     match kind {
       TyKind::Error => Ty::error(),
+      TyKind::Func(_) if void_arg_pos.is_some() => self.issue(void_arg_pos.unwrap(), VoidInFuncTypeArg),
       TyKind::Void if s.arr != 0 => self.issue(s.loc, VoidArrayElement),
       _ => Ty { arr: s.arr + (is_arr as u32), kind }
     }

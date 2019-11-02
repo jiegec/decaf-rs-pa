@@ -73,6 +73,7 @@ pub enum ErrorKind<'a, Ty> {
   NoReturn,
   AbstractFuncInNonAbstractClass { class: &'a str },
   CannotInstantiateAbstractClass { class: &'a str },
+  VoidInFuncTypeArg,
 }
 
 impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
@@ -117,6 +118,7 @@ impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
       NoReturn => write!(f, "missing return statement: control reaches end of non-void block"),
       AbstractFuncInNonAbstractClass { class } => write!(f, "'{}' is not abstract and does not override all abstract methods", class),
       CannotInstantiateAbstractClass { class } => write!(f, "Cannot instantiate abstract class '{}'", class),
+      VoidInFuncTypeArg => write!(f, "arguments in function type must be non-void known type"),
     }
   }
 }
