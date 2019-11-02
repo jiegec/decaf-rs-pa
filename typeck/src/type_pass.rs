@@ -78,6 +78,8 @@ impl<'a> TypePass<'a> {
           }
           // type deduction
           if l.get().is_var() {
+            // cannot deduct void type
+            if r == Ty::void() { self.issue(v.loc, VoidVar(v.name)) }
             l.set(r);
           }
         }
