@@ -223,7 +223,7 @@ impl<'p> Parser<'p> {
   fn maybe_else0() -> Option<Block<'p>> { None }
 
   #[rule(Simple -> LValue Assign Expr)]
-  fn simple_assign(dst: Expr<'p>, a: Token, src: Expr<'p>) -> Stmt<'p> { mk_stmt(a.loc(), Assign { dst, src }.into()) }
+  fn simple_assign(dst: Expr<'p>, a: Token, src: Expr<'p>) -> Stmt<'p> { mk_stmt(a.loc(), Assign { dst, src, loc: a.loc() }.into()) }
   #[rule(Simple -> VarDef)] // the VarDef without init
   fn simple_var_def(v: &'p VarDef<'p>) -> Stmt<'p> { mk_stmt(v.loc, v.into()) }
   #[rule(Simple -> Type Id Assign Expr)] // the VarDef with init
@@ -324,11 +324,11 @@ impl<'p> Parser<'p> {
   }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Rocket Expr)]
   fn expr_lambda_expr(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, _r: Token, expr: Expr<'p>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { param, body: Left(Box::new(expr)), scope: dft() }.into())
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Left(Box::new(expr)), scope: dft() }.into())
   }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Block)]
   fn expr_lambda_block(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, block: Block<'p>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { param, body: Right(Box::new(block)), scope: dft() }.into())
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Right(Box::new(block)), scope: dft() }.into())
   }
 
   #[rule(ExprList -> ExprList Comma Expr)]

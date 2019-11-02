@@ -2,8 +2,8 @@ mod scope_stack;
 mod symbol_pass;
 mod type_pass;
 
-use common::{Errors, ErrorKind::*, Ref};
-use syntax::{ClassDef, SynTy, SynTyKind, ScopeOwner, Ty, TyKind, Program, VarDef};
+use common::{Errors, ErrorKind::*, Ref, Loc};
+use syntax::{ClassDef, SynTy, SynTyKind, ScopeOwner, Ty, TyKind, Program};
 use typed_arena::Arena;
 use std::ops::{Deref, DerefMut};
 use crate::{symbol_pass::SymbolPass, type_pass::TypePass, scope_stack::ScopeStack};
@@ -22,7 +22,7 @@ struct FuncInfo<'a> {
 }
 
 pub fn work<'a>(p: &'a Program<'a>, alloc: &'a TypeCkAlloc<'a>) -> Result<(), Errors<'a, Ty<'a>>> {
-  let mut s = SymbolPass(TypeCk { errors: Errors(vec![]), scopes: ScopeStack::new(p), loop_cnt: 0, cur_used: false, cur_func_info: None, cur_class: None, cur_var_def: None, alloc });
+  let mut s = SymbolPass(TypeCk { errors: Errors(vec![]), scopes: ScopeStack::new(p), loop_cnt: 0, cur_used: false, cur_func_info: None, cur_class: None, cur_assign_loc: None, alloc });
   s.program(p);
   if !s.errors.0.is_empty() { return Err(s.0.errors.sorted()); }
   let mut t = TypePass(s.0);
@@ -40,10 +40,7 @@ struct TypeCk<'a> {
   cur_used: bool,
   cur_func_info: Option<FuncInfo<'a>>,
   cur_class: Option<&'a ClassDef<'a>>,
-  // actually only use cur_var_def's loc
-  // if cur_var_def is Some, wil use it's loc to search for symbol in TypePass::var_sel
-  // this can reject code like `int a = a;`
-  cur_var_def: Option<&'a VarDef<'a>>,
+  cur_assign_loc: Option<Loc>,
   alloc: &'a TypeCkAlloc<'a>,
 }
 

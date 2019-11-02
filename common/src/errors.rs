@@ -74,6 +74,7 @@ pub enum ErrorKind<'a, Ty> {
   AbstractFuncInNonAbstractClass { class: &'a str },
   CannotInstantiateAbstractClass { class: &'a str },
   VoidInFuncTypeArg,
+  AssignCapturedVarInLambda,
 }
 
 impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
@@ -119,6 +120,7 @@ impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
       AbstractFuncInNonAbstractClass { class } => write!(f, "'{}' is not abstract and does not override all abstract methods", class),
       CannotInstantiateAbstractClass { class } => write!(f, "Cannot instantiate abstract class '{}'", class),
       VoidInFuncTypeArg => write!(f, "arguments in function type must be non-void known type"),
+      AssignCapturedVarInLambda => write!(f, "cannot assign value to captured variables in lambda expression"),
     }
   }
 }

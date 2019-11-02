@@ -305,7 +305,7 @@ impl<'p> Parser<'p> {
   #[rule(Simple -> Expr MaybeAssign)]
   fn simple_assign_or_expr(e: Expr<'p>, assign: Option<(Loc, Expr<'p>)>) -> Stmt<'p> {
     if let Some((loc, src)) = assign {
-      mk_stmt(loc, Assign { dst: e, src }.into())
+      mk_stmt(loc, Assign { dst: e, src, loc }.into())
     } else {
       mk_stmt(e.loc, e.into())
     }
@@ -387,7 +387,7 @@ impl<'p> Parser<'p> {
   fn expr(e: Expr<'p>) -> Expr<'p> { e }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar ExprOrBlock)]
   fn expr_function(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Either<Box<Expr<'p>>, Box<Block<'p>>>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { param: param.reversed(), body, scope: dft() }.into())
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param: param.reversed(), body, scope: dft() }.into())
   }
 
   #[rule(Expr1 -> Expr2 Term1)]

@@ -1,5 +1,5 @@
 use crate::{Block, Lambda, ClassDef, FuncDef, VarDef, Program, Ty, show_func_ty};
-use common::{Loc, HashMap};
+use common::{Loc, HashMap, NO_LOC};
 use std::{cell::{RefMut, Ref}, fmt};
 
 pub type Scope<'a> = HashMap<&'a str, Symbol<'a>>;
@@ -80,6 +80,18 @@ impl<'a> ScopeOwner<'a> {
     }
   }
 
+  pub fn loc(&self) -> Loc {
+    use ScopeOwner::*;
+    match self {
+      Lambda(x) => x.loc,
+      Local(x) => x.loc,
+      Param(x) => x.loc,
+      Class(x) => x.loc,
+      Global(_x) => NO_LOC,
+    }
+  }
+
+  pub fn is_lambda(&self) -> bool { if let ScopeOwner::Lambda(_) = self { true } else { false } }
   pub fn is_local(&self) -> bool { if let ScopeOwner::Local(_) = self { true } else { false } }
   pub fn is_param(&self) -> bool { if let ScopeOwner::Param(_) = self { true } else { false } }
   pub fn is_class(&self) -> bool { if let ScopeOwner::Class(_) = self { true } else { false } }

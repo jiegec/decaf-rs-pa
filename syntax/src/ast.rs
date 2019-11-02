@@ -125,6 +125,7 @@ pub enum StmtKind<'a> {
 }
 
 pub struct Assign<'a> {
+  pub loc: Loc,
   pub dst: Expr<'a>,
   pub src: Expr<'a>,
 }
@@ -246,6 +247,7 @@ pub struct ReadInt;
 pub struct ReadLine;
 
 pub struct Lambda<'a> {
+  pub loc: Loc,
   pub param: Vec<&'a VarDef<'a>>,
   pub body: Either<Box<Expr<'a>>, Box<Block<'a>>>,
   pub scope: RefCell<Scope<'a>>,
