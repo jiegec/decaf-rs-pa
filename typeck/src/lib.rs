@@ -36,7 +36,7 @@ struct TypeCk<'a> {
   scopes: ScopeStack<'a>,
   loop_cnt: u32,
   // `cur_used` is only used to determine 2 kinds of errors:
-  // Class.var (cur_used == true) => BadFieldAssess; Class (cur_used == false) => UndeclaredVar
+  // Class.var (cur_used == true) => BadFieldAssess; Class (cur_used == false) => UndeclaredSym
   cur_used: bool,
   cur_func_info: Option<FuncInfo<'a>>,
   cur_class: Option<&'a ClassDef<'a>>,

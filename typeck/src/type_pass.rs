@@ -184,7 +184,7 @@ impl<'a> TypePass<'a> {
     let ty = match &e.kind {
       VarSel(v) => self.var_sel(v, e.loc, lvalue),
       IndexSel(i) => {
-        let (arr, idx) = (self.expr(&i.arr, lvalue), self.expr(&i.idx, false));
+        let (arr, idx) = (self.expr(&i.arr, false), self.expr(&i.idx, false));
         if idx != Ty::int() && idx != Ty::error() {
           self.issue(e.loc, IndexNotInt)
         }
@@ -312,7 +312,7 @@ impl<'a> TypePass<'a> {
   }
 
   fn var_sel(&mut self, v: &'a VarSel<'a>, loc: Loc, lvalue: bool) -> Ty<'a> {
-    // not found(no owner) or sole ClassName => UndeclaredVar
+    // not found(no owner) or sole ClassName => UndeclaredSym
     // refer to field in static function => RefInStatic
     // <not object>.a (Main.a, 1.a, func.a) => BadFieldAssess
     // access a field that doesn't belong to self & ancestors => PrivateFieldAccess
@@ -379,11 +379,11 @@ impl<'a> TypePass<'a> {
             Symbol::This(f) => Ty::mk_obj(f.class.get().unwrap()),
             Symbol::Class(c) => {
               if !self.cur_used {
-                self.issue(loc, UndeclaredVar(v.name))
+                self.issue(loc, UndeclaredSym(v.name))
               } else { Ty::mk_class(c) }
             }
           }
-          None => self.errors.issue(loc, UndeclaredVar(v.name)),
+          None => self.errors.issue(loc, UndeclaredSym(v.name)),
         };
         self.cur_used = false;
         ret
