@@ -57,7 +57,7 @@ impl<'a> SymbolPass<'a> {
     let mut checked = HashSet::new();
     for c in &p.class {
       self.class_def(c, &mut checked);
-      if c.name == MAIN_CLASS { p.main.set(Some(c)); }
+      if c.name == MAIN_CLASS && !c.abstract_ { p.main.set(Some(c)); }
       self.check_abstract(c);
     }
     if p.main.get().map(|c| match c.scope.borrow().get(MAIN_METHOD) {
@@ -97,6 +97,8 @@ impl<'a> SymbolPass<'a> {
             Symbol::Func(pf) => {
               if f.static_ || pf.static_ {
                 self.issue(f.loc, ConflictDeclaration { prev: pf.loc, name: f.name })
+              } else if f.abstract_ && !pf.abstract_ {
+                self.issue(f.loc, ConflictDeclaration { prev: pf.loc, name: f.name })
               } else if !Ty::mk_func(f).assignable_to(Ty::mk_func(pf)) {
                 self.issue(f.loc, OverrideMismatch { func: f.name, p: p.name })
               } else { true }
@@ -115,8 +117,9 @@ impl<'a> SymbolPass<'a> {
     if v.ty.get() == Ty::void() { self.issue(v.loc, VoidVar(v.name)) }
     let ok = if let Some((sym, owner)) = self.scopes.lookup(v.name) {
       match (self.scopes.cur_owner(), owner) {
-        (ScopeOwner::Class(c1), ScopeOwner::Class(c2)) if Ref(c1) != Ref(c2) && sym.is_var() =>
-          self.issue(sym.loc(), OverrideVar(v.name)),
+        (ScopeOwner::Class(c1), ScopeOwner::Class(c2)) if Ref(c1) != Ref(c2) && sym.is_var() => {
+          self.issue(v.loc, OverrideVar(v.name))
+        },
         (ScopeOwner::Class(_), ScopeOwner::Class(_)) | (_, ScopeOwner::Param(_)) | (_, ScopeOwner::Local(_)) =>
           self.issue(v.loc, ConflictDeclaration { prev: sym.loc(), name: v.name }),
         _ => true,
