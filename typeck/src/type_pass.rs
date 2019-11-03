@@ -269,7 +269,8 @@ impl<'a> TypePass<'a> {
         let ret_param_ty = s.alloc.ty.alloc_extend(ret_param_ty);
         // restore
         s.cur_func_info = old_cur_func_info;
-        Ty::mk_lambda(l, ret_param_ty)
+        l.ret_param_ty.set(Some(ret_param_ty));
+        Ty::mk_lambda(l)
       }),
     };
     e.ty.set(ty);
@@ -391,34 +392,60 @@ impl<'a> TypePass<'a> {
   }
 
   fn call(&mut self, c: &'a Call<'a>, loc: Loc) -> Ty<'a> {
-    let v = if let ExprKind::VarSel(v) = &c.func.kind { v } else { unimplemented!() };
-    match &v.owner {
-      Some(owner) => {
-        self.cur_used = true;
-        let owner = self.expr(owner, false);
-        self.cur_used = false;
-        if owner == Ty::error() { return Ty::error(); }
-        if v.name == LENGTH && owner.is_arr() {
-          if !c.arg.is_empty() {
-            self.issue(loc, LengthWithArgument(c.arg.len() as u32))
+    match &c.func.kind {
+      ExprKind::VarSel(v) => {
+        match &v.owner {
+          Some(owner) => {
+            self.cur_used = true;
+            let owner = self.expr(owner, false);
+            self.cur_used = false;
+            if owner == Ty::error() { return Ty::error(); }
+            if v.name == LENGTH && owner.is_arr() {
+              if !c.arg.is_empty() {
+                self.issue(loc, LengthWithArgument(c.arg.len() as u32))
+              }
+              return Ty::int();
+            }
+            match owner.kind {
+              TyKind::Class(cl) | TyKind::Object(cl) => if let Some(sym) = cl.lookup(v.name) {
+                self.check_normal_call(v, c, owner, sym, loc)
+              } else {
+                self.issue(loc, NoSuchField { name: v.name, owner })
+              }
+              _ => self.issue(loc, BadFieldAccess { name: v.name, owner }),
+            }
           }
-          return Ty::int();
-        }
-        match owner.kind {
-          TyKind::Class(cl) | TyKind::Object(cl) => if let Some(sym) = cl.lookup(v.name) {
-            self.check_normal_call(v, c, owner, sym, loc)
-          } else {
-            self.issue(loc, NoSuchField { name: v.name, owner })
+          None => {
+            let cur = self.cur_class.unwrap();
+            if let Some((sym, _owner)) = self.scopes.lookup(v.name) {
+              self.check_normal_call(v, c, Ty::mk_obj(cur), sym, loc)
+            } else {
+              self.issue(loc, NoSuchField { name: v.name, owner: Ty::mk_obj(cur) })
+            }
           }
-          _ => self.issue(loc, BadFieldAccess { name: v.name, owner }),
         }
       }
-      None => {
-        let cur = self.cur_class.unwrap();
-        if let Some((sym, _owner)) = self.scopes.lookup(v.name) {
-          self.check_normal_call(v, c, Ty::mk_obj(cur), sym, loc)
-        } else {
-          self.issue(loc, NoSuchField { name: v.name, owner: Ty::mk_obj(cur) })
+      _ => {
+        let ty = self.expr(&c.func, false);
+        match ty.kind {
+          TyKind::Func(func) => {
+            let params = &func[1..];
+            if params.len() != c.arg.len() {
+              self.issue(loc, LambdaArgcMismatch { expect: params.len() as u32, actual: c.arg.len() as u32 })
+            } else {
+              for (idx, (arg, param)) in c.arg.iter().zip(params.iter()).enumerate() {
+                let arg = self.expr(arg, false);
+                if !arg.assignable_to(*param) {
+                  self.issue(c.arg[idx].loc, ArgMismatch { loc: idx as u32 + 1, arg, param: *param })
+                }
+              }
+            }
+            // ret ty
+            func[0]
+          }
+          _ => {
+            self.issue(loc, NotCallableType { ty })
+          }
         }
       }
     }
@@ -439,6 +466,17 @@ impl<'a> TypePass<'a> {
         let ty = v.ty.get();
         match ty.kind {
           TyKind::Func(func) => {
+            let params = &func[1..];
+            if params.len() != c.arg.len() {
+              self.issue(loc, ArgcMismatch { name: v.name, expect: params.len() as u32, actual: c.arg.len() as u32 })
+            } else {
+              for (idx, (arg, param)) in c.arg.iter().zip(params.iter()).enumerate() {
+                let arg = self.expr(arg, false);
+                if !arg.assignable_to(*param) {
+                  self.issue(c.arg[idx].loc, ArgMismatch { loc: idx as u32 + 1, arg, param: *param })
+                }
+              }
+            }
             // ret ty
             func[0]
           }

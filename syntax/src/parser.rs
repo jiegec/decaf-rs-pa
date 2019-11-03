@@ -324,11 +324,11 @@ impl<'p> Parser<'p> {
   }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Rocket Expr)]
   fn expr_lambda_expr(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, _r: Token, expr: Expr<'p>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Left(Box::new(expr)), scope: dft() }.into())
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Left(Box::new(expr)), scope: dft(), ret_param_ty: dft() }.into())
   }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Block)]
   fn expr_lambda_block(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, block: Block<'p>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Right(Box::new(block)), scope: dft() }.into())
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Right(Box::new(block)), scope: dft(), ret_param_ty: dft() }.into())
   }
 
   #[rule(ExprList -> ExprList Comma Expr)]

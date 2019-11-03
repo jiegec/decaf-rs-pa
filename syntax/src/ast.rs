@@ -261,4 +261,11 @@ pub struct Lambda<'a> {
   pub param: Vec<&'a VarDef<'a>>,
   pub body: Either<Box<Expr<'a>>, Box<Block<'a>>>,
   pub scope: RefCell<Scope<'a>>,
+  // placing ret and param ty in one slice is mainly to some space, especially the size of struct Ty
+  // [0] is ret_ty, [1..] is parm_ty
+  pub ret_param_ty: Cell<Option<&'a [Ty<'a>]>>,
+}
+
+impl<'a> Lambda<'a> {
+  pub fn ret_ty(&self) -> Ty<'a> { self.ret_param_ty.get().unwrap()[0] }
 }

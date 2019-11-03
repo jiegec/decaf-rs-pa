@@ -185,6 +185,12 @@ impl<'a> SymbolPass<'a> {
           }
         }
       }),
+      Call(c) => {
+        self.expr(&c.func);
+        for arg in c.arg.iter() {
+          self.expr(arg);
+        }
+      },
       _ => {}
     }
   }
