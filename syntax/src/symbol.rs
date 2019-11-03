@@ -112,7 +112,9 @@ impl fmt::Debug for Symbol<'_> {
       }
       Symbol::This(fu) => write!(f, "{:?} -> variable @this : class {}", fu.loc, fu.class.get().unwrap().name),
       Symbol::Class(c) => {
-        write!(f, "{:?} -> class {}", c.loc, c.name)?;
+        write!(f, "{:?} -> {}class {}", c.loc,
+          if c.abstract_ { "ABSTRACT " } else { "" },
+          c.name)?;
         if let Some(p) = c.parent_ref.get() { write!(f, " : {}", p.name) } else { Ok(()) }
       }
     }
