@@ -365,7 +365,16 @@ impl<'a> TypePass<'a> {
               }
               var.ty.get()
             }
-            Symbol::Func(f) => Ty::mk_func(f),
+            Symbol::Func(f) => {
+              if let Some(_class) = f.class.get() {
+                let cur = self.cur_func_info.as_ref().unwrap();
+                if cur.static_ {
+                  let name = cur.name;
+                  self.issue(loc, RefInStatic { field: v.name, func: name })
+                }
+              }
+              Ty::mk_func(f)
+            },
             Symbol::This(f) => Ty::mk_obj(f.class.get().unwrap()),
             Symbol::Class(c) => {
               if !self.cur_used {
@@ -434,7 +443,7 @@ impl<'a> TypePass<'a> {
             func[0]
           }
           _ => {
-            self.issue(loc, NotFunc { name: v.name, owner })
+            self.issue(loc, NotCallableType { ty })
           }
         }
       },

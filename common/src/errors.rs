@@ -76,6 +76,7 @@ pub enum ErrorKind<'a, Ty> {
   VoidInFuncTypeArg,
   AssignCapturedVarInLambda,
   IncompatibleReturnTypeOfBlock,
+  NotCallableType { ty: Ty },
 }
 
 impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
@@ -123,6 +124,7 @@ impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
       VoidInFuncTypeArg => write!(f, "arguments in function type must be non-void known type"),
       AssignCapturedVarInLambda => write!(f, "cannot assign value to captured variables in lambda expression"),
       IncompatibleReturnTypeOfBlock => write!(f, "incompatible return types in blocked expression"),
+      NotCallableType { ty } => write!(f, "{:?} is not a callable type", ty),
     }
   }
 }
