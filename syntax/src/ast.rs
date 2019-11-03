@@ -53,6 +53,16 @@ impl<'a> ClassDef<'a> {
       }
     }
   }
+
+  // will recursively collect all parents' loc
+  pub fn parents(&'a self) -> Vec<&'a ClassDef<'a>> {
+    let mut res = match self.parent_ref.get() {
+      Some(p) => p.parents(),
+      None => vec![]
+    };
+    res.push(self);
+    res
+  }
 }
 
 #[derive(derive_more::From, Copy, Clone)]

@@ -75,6 +75,7 @@ pub enum ErrorKind<'a, Ty> {
   CannotInstantiateAbstractClass { class: &'a str },
   VoidInFuncTypeArg,
   AssignCapturedVarInLambda,
+  IncompatibleReturnTypeOfBlock,
 }
 
 impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
@@ -121,6 +122,7 @@ impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
       CannotInstantiateAbstractClass { class } => write!(f, "Cannot instantiate abstract class '{}'", class),
       VoidInFuncTypeArg => write!(f, "arguments in function type must be non-void known type"),
       AssignCapturedVarInLambda => write!(f, "cannot assign value to captured variables in lambda expression"),
+      IncompatibleReturnTypeOfBlock => write!(f, "incompatible return types in blocked expression"),
     }
   }
 }

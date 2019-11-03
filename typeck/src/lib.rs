@@ -22,7 +22,7 @@ struct FuncInfo<'a> {
 }
 
 pub fn work<'a>(p: &'a Program<'a>, alloc: &'a TypeCkAlloc<'a>) -> Result<(), Errors<'a, Ty<'a>>> {
-  let mut s = SymbolPass(TypeCk { errors: Errors(vec![]), scopes: ScopeStack::new(p), loop_cnt: 0, cur_used: false, cur_func_info: None, cur_class: None, cur_assign_loc: None, alloc });
+  let mut s = SymbolPass(TypeCk { errors: Errors(vec![]), scopes: ScopeStack::new(p), loop_cnt: 0, cur_used: false, cur_func_info: None, cur_class: None, cur_assign_loc: None, cur_return_ty: vec![], alloc });
   s.program(p);
   if !s.errors.0.is_empty() { return Err(s.0.errors.sorted()); }
   let mut t = TypePass(s.0);
@@ -41,6 +41,7 @@ struct TypeCk<'a> {
   cur_func_info: Option<FuncInfo<'a>>,
   cur_class: Option<&'a ClassDef<'a>>,
   cur_assign_loc: Option<Loc>,
+  cur_return_ty: Vec<Ty<'a>>,
   alloc: &'a TypeCkAlloc<'a>,
 }
 
