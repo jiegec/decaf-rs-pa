@@ -312,7 +312,7 @@ impl<'a> TypePass<'a> {
   }
 
   fn var_sel(&mut self, v: &'a VarSel<'a>, loc: Loc, lvalue: bool) -> Ty<'a> {
-    // not found(no owner) or sole ClassName => UndeclaredSym
+    // not found(no owner) or sole ClassName => UndeclaredVar
     // refer to field in static function => RefInStatic
     // <not object>.a (Main.a, 1.a, func.a) => BadFieldAssess
     // access a field that doesn't belong to self & ancestors => PrivateFieldAccess
@@ -321,7 +321,7 @@ impl<'a> TypePass<'a> {
     match &v.owner {
       Some(o) => {
         self.cur_used = true;
-        let o_t = self.expr(o, lvalue);
+        let o_t = self.expr(o, false);
         self.cur_used = false;
         match o_t {
           Ty { arr: 0, kind: TyKind::Object(Ref(c)) } => match c.lookup(v.name) {
@@ -379,11 +379,11 @@ impl<'a> TypePass<'a> {
             Symbol::This(f) => Ty::mk_obj(f.class.get().unwrap()),
             Symbol::Class(c) => {
               if !self.cur_used {
-                self.issue(loc, UndeclaredSym(v.name))
+                self.issue(loc, UndeclaredVar(v.name))
               } else { Ty::mk_class(c) }
             }
           }
-          None => self.errors.issue(loc, UndeclaredSym(v.name)),
+          None => self.errors.issue(loc, UndeclaredVar(v.name)),
         };
         self.cur_used = false;
         ret
