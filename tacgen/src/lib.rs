@@ -185,6 +185,7 @@ impl<'a> TacGen<'a> {
         let var = v.var.get().unwrap();
         let off = self.var_info[&Ref(var)].off;
         match var.owner.get().unwrap() {
+          ScopeOwner::Lambda(_) => unimplemented!(),
           ScopeOwner::Local(_) | ScopeOwner::Param(_) => if let Some(src) = assign { // off is register
             // don't care this return, the below 0 is the same
             (f.push(TacKind::Assign { dst: off, src: [src] }), 0).1

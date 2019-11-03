@@ -1,6 +1,7 @@
-use crate::{ClassDef, FuncDef};
+use crate::{ClassDef, FuncDef, Lambda};
 use common::{Loc, Ref};
-use std::fmt;
+use std::{fmt, iter};
+use typed_arena::Arena;
 
 #[derive(Eq, PartialEq)]
 pub enum SynTyKind<'a> {
@@ -35,6 +36,8 @@ pub enum TyKind<'a> {
   Class(Ref<'a, ClassDef<'a>>),
   // [0] = ret, [1..] = param
   Func(&'a [Ty<'a>]),
+  // auto deduced in type pass
+  Var,
 }
 
 impl Default for TyKind<'_> {
@@ -53,6 +56,7 @@ impl<'a> Ty<'a> {
     use TyKind::*;
     match (self.kind, rhs.kind) {
       (Error, _) | (_, Error) => true,
+      (_, Var) => true,
       _ => self.arr == rhs.arr && match (self.kind, rhs.kind) {
         (Int, Int) | (Bool, Bool) | (String, String) | (Void, Void) => true,
         (Object(c1), Object(Ref(c2))) => c1.extends(c2),
@@ -66,6 +70,62 @@ impl<'a> Ty<'a> {
     }
   }
 
+  // find lowest common ancestor/highest common descendant
+  pub fn find_common(&self, rhs: Ty<'a>, arena: &'a Arena<Ty<'a>>, upwards: bool) -> Ty<'a> {
+    use TyKind::*;
+    match (self.kind, rhs.kind) {
+      (Error, _) | (_, Error) => Ty::error(),
+      _ if *self == rhs => *self,
+      _ if self.arr == rhs.arr => match (self.kind, rhs.kind) {
+        (Object(Ref(c1)), Object(Ref(c2))) => {
+          let parent_c1 = c1.parents();
+          let parent_c2 = c2.parents();
+          if parent_c1[0].loc != parent_c2[0].loc {
+            // no common ancestor
+            Ty::error()
+          } else {
+            if upwards {
+              // lowest common ancestor
+              let mut res = Ty::mk_obj(parent_c1[0]);
+              for i in 1..std::cmp::min(parent_c1.len(), parent_c2.len()) {
+                res = Ty::mk_obj(parent_c1[i-1]);
+                if parent_c1[i].loc != parent_c2[i].loc {
+                  break;
+                }
+              }
+              res
+            } else {
+              // highest common descendant
+              let mut res = if parent_c1.len() > parent_c2.len() {
+                Ty::mk_obj(c1)
+              } else {
+                Ty::mk_obj(c2)
+              };
+              for i in 1..std::cmp::min(parent_c1.len(), parent_c2.len()) {
+                if parent_c1[i].loc != parent_c2[i].loc {
+                  res = Ty::error();
+                  break;
+                }
+              }
+              res
+            }
+          }
+        },
+        (Null, Object(_)) => rhs,
+        (Object(_), Null) => *self,
+        (Func(rp1), Func(rp2)) => {
+          let (r1, p1, r2, p2) = (&rp1[0], &rp1[1..], &rp2[0], &rp2[1..]);
+          // when looking for ancestor type of func: for return value, use ancestor; for arguments, use descendant
+          let res = iter::once(r1.find_common(*r2, arena, upwards)).chain(p1.iter().zip(p2).map(|(r1, r2)| r1.find_common(*r2, arena, !upwards)));
+          let res = arena.alloc_extend(res);
+          Ty { arr: 0, kind: TyKind::Func(res) }
+        }
+        _ => Ty::error(),
+      }
+      _ => Ty::error()
+    }
+  }
+
   // why don't use const items?
   // it seems that const items can only have type Ty<'static>, which can NOT be casted to Ty<'a>
   pub const fn error() -> Ty<'a> { Ty { arr: 0, kind: TyKind::Error } }
@@ -74,15 +134,19 @@ impl<'a> Ty<'a> {
   pub const fn bool() -> Ty<'a> { Ty { arr: 0, kind: TyKind::Bool } }
   pub const fn void() -> Ty<'a> { Ty { arr: 0, kind: TyKind::Void } }
   pub const fn string() -> Ty<'a> { Ty { arr: 0, kind: TyKind::String } }
+  pub const fn var() -> Ty<'a> { Ty { arr: 0, kind: TyKind::Var } }
 
   pub fn mk_obj(c: &'a ClassDef<'a>) -> Ty<'a> { Ty { arr: 0, kind: TyKind::Object(Ref(c)) } }
   pub fn mk_class(c: &'a ClassDef<'a>) -> Ty<'a> { Ty { arr: 0, kind: TyKind::Class(Ref(c)) } }
   pub fn mk_func(f: &'a FuncDef<'a>) -> Ty<'a> { Ty { arr: 0, kind: TyKind::Func(f.ret_param_ty.get().unwrap()) } }
+  pub fn mk_lambda(l: &'a Lambda<'a>) -> Ty<'a> { Ty { arr: 0, kind: TyKind::Func(l.ret_param_ty.get().unwrap()) } }
 
   pub fn is_arr(&self) -> bool { self.arr > 0 }
   pub fn is_func(&self) -> bool { self.arr == 0 && if let TyKind::Func(_) = self.kind { true } else { false } }
   pub fn is_class(&self) -> bool { self.arr == 0 && if let TyKind::Class(_) = self.kind { true } else { false } }
   pub fn is_object(&self) -> bool { self.arr == 0 && if let TyKind::Object(_) = self.kind { true } else { false } }
+  pub fn is_var(&self) -> bool { self.arr == 0 && if let TyKind::Var = self.kind { true } else { false } }
+  pub fn is_error(&self) -> bool { self.arr == 0 && if let TyKind::Error = self.kind { true } else { false } }
 }
 
 impl fmt::Debug for Ty<'_> {
@@ -94,6 +158,7 @@ impl fmt::Debug for Ty<'_> {
       TyKind::Void => write!(f, "void"),
       TyKind::Error => write!(f, "error"), // we don't expect to reach this case in printing scope info
       TyKind::Null => write!(f, "null"),
+      TyKind::Var => write!(f, "var"),
       TyKind::Object(c) | TyKind::Class(c) => write!(f, "class {}", c.name),
       TyKind::Func(ret_param) => show_func_ty(ret_param[1..].iter().cloned(), ret_param[0], self.is_arr(), f),
     }?;

@@ -53,6 +53,16 @@ impl<'a> ClassDef<'a> {
       }
     }
   }
+
+  // will recursively collect all parents' loc
+  pub fn parents(&'a self) -> Vec<&'a ClassDef<'a>> {
+    let mut res = match self.parent_ref.get() {
+      Some(p) => p.parents(),
+      None => vec![]
+    };
+    res.push(self);
+    res
+  }
 }
 
 #[derive(derive_more::From, Copy, Clone)]
@@ -125,6 +135,7 @@ pub enum StmtKind<'a> {
 }
 
 pub struct Assign<'a> {
+  pub loc: Loc,
   pub dst: Expr<'a>,
   pub src: Expr<'a>,
 }
@@ -246,6 +257,15 @@ pub struct ReadInt;
 pub struct ReadLine;
 
 pub struct Lambda<'a> {
+  pub loc: Loc,
   pub param: Vec<&'a VarDef<'a>>,
   pub body: Either<Box<Expr<'a>>, Box<Block<'a>>>,
+  pub scope: RefCell<Scope<'a>>,
+  // placing ret and param ty in one slice is mainly to some space, especially the size of struct Ty
+  // [0] is ret_ty, [1..] is parm_ty
+  pub ret_param_ty: Cell<Option<&'a [Ty<'a>]>>,
+}
+
+impl<'a> Lambda<'a> {
+  pub fn ret_ty(&self) -> Ty<'a> { self.ret_param_ty.get().unwrap()[0] }
 }
