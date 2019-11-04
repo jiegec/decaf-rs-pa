@@ -1,4 +1,4 @@
-use crate::{Block, Lambda, ClassDef, FuncDef, VarDef, Program, Ty, show_func_ty};
+use crate::{Block, Lambda, ClassDef, FuncDef, VarDef, Program, Ty};
 use common::{Loc, HashMap, NO_LOC};
 use std::{cell::{RefMut, Ref}, fmt};
 
@@ -104,11 +104,11 @@ impl fmt::Debug for Symbol<'_> {
       Symbol::Var(v) => write!(f, "{:?} -> variable {}{} : {:?}", v.loc,
                                if v.owner.get().unwrap().is_param() { "@" } else { "" }, v.name, v.ty.get()),
       Symbol::Func(fu) => {
-        write!(f, "{:?} -> {}{}function {} : ", fu.loc,
+        write!(f, "{:?} -> {}{}function {} : {:?}", fu.loc,
           if fu.static_ { "STATIC " } else { "" },
           if fu.abstract_ { "ABSTRACT " } else { "" },
-          fu.name)?;
-        show_func_ty(fu.param.iter().map(|v|v.ty.get()), fu.ret_ty(), false, f)
+          fu.name,
+          Ty::mk_func(fu))
       }
       Symbol::This(fu) => write!(f, "{:?} -> variable @this : class {}", fu.loc, fu.class.get().unwrap().name),
       Symbol::Class(c) => {

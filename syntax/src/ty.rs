@@ -167,6 +167,7 @@ impl fmt::Debug for Ty<'_> {
   }
 }
 
+// do not follow upstream yet
 pub fn show_func_ty<'a>(mut param: impl Iterator<Item=Ty<'a>>, ret: Ty, is_arr: bool, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
   if is_arr { write!(f, "(")?; } // [] have higher priority than T => T, so add () here, make it (T => T)[]
   // param number: 0 => "()", 1 => "T", >=2 => "(T0, T1, ...)"

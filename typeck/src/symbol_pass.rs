@@ -154,7 +154,8 @@ impl<'a> SymbolPass<'a> {
       }
       StmtKind::While(w) => self.block(&w.body),
       StmtKind::For(f) => self.scoped(ScopeOwner::Local(&f.body), |s| {
-        if let StmtKind::LocalVarDef(v) = &f.init.kind { s.var_def(v); }
+        s.stmt(&f.init);
+        s.stmt(&f.update);
         for st in &f.body.stmt { s.stmt(st); }
       }),
       StmtKind::Block(b) => self.block(b),

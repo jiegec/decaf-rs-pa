@@ -239,7 +239,7 @@ impl<'a> TacGen<'a> {
       Call(c) => {
         let v = if let ExprKind::VarSel(v) = &c.func.kind { v } else { unimplemented!() };
         Reg(match &v.owner {
-          Some(o)if o.ty.get().is_arr() => {
+          Some(o) if o.ty.get().is_arr() => {
             let arr = self.expr(o, f);
             self.length(arr, f)
           }

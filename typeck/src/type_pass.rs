@@ -41,31 +41,16 @@ impl<'a> TypePass<'a> {
     });
   }
 
-  // whether this block has a return value depends on the first stmt in this block that has a return value or is a Break
-  // it has a return yes => block has, it is a Break => no, there is no such stmt => no
-  // in addition, if this stmt is not the last stmt, an UnreachableCode error should be reported
   fn block(&mut self, b: &'a Block<'a>, lambda: bool) -> Option<Ty<'a>> {
     let mut old = vec![];
     if lambda {
       old.append(&mut self.cur_return_ty);
     }
     let mut ret = false;
-    let (mut ended, mut issued) = (false, false);
     self.scoped(ScopeOwner::Local(b), |s| for st in &b.stmt {
-      if ended && !issued {
-        issued = true;
-        s.issue(st.loc, ErrorKind::UnreachableCode)
-      }
-      let t = s.stmt(st);
-      if !ended { ret = t; }
-      ended = ret || match st.kind { StmtKind::Break(_) => true, _ => false };
+      ret = s.stmt(st);
     });
     if lambda {
-      // reach end of non-void block
-      let non_void = self.cur_return_ty.iter().any(|ty| *ty != Ty::void());
-      if non_void && !ended {
-        self.issue(b.loc, ErrorKind::NoReturn)
-      }
       let res = if let Some(ty) = self.cur_return_ty.iter().next() {
         let mut cur_ty = *ty;
         for next_ty in self.cur_return_ty.iter().skip(1) {
@@ -147,18 +132,15 @@ impl<'a> TypePass<'a> {
       }),
       StmtKind::Return(r) => {
         let expect = self.cur_func_info.as_ref().unwrap().ret_ty;
-        if let Some(e) = r {
-          let actual = self.expr(e, false);
-          if !actual.assignable_to(expect) {
-            self.issue(s.loc, ReturnMismatch { actual, expect })
-          }
-          self.cur_return_ty.push(actual);
+        let actual = if let Some(e) = r {
+          self.expr(e, false)
         } else {
-          if expect != Ty::void() && expect != Ty::var() {
-            self.issue(s.loc, ReturnMismatch { actual: Ty::void(), expect })
-          }
-          self.cur_return_ty.push(Ty::void());
+          Ty::void()
+        };
+        if !actual.assignable_to(expect) {
+          self.issue(s.loc, ReturnMismatch { actual, expect })
         }
+        self.cur_return_ty.push(Ty::void());
         true
       }
       StmtKind::Print(p) => {
@@ -312,11 +294,11 @@ impl<'a> TypePass<'a> {
   }
 
   fn var_sel(&mut self, v: &'a VarSel<'a>, loc: Loc, lvalue: bool) -> Ty<'a> {
-    // not found(no owner) or sole ClassName => UndeclaredVar
-    // refer to field in static function => RefInStatic
-    // <not object>.a (Main.a, 1.a, func.a) => BadFieldAssess
-    // access a field that doesn't belong to self & ancestors => PrivateFieldAccess
-    // given owner but not found object.a => NoSuchField
+    // (no owner)not_found_var / ClassName<ns> / (no owner)method => UndeclaredVar
+    // object.not_found_var => NoSuchField
+    // (no owner)field_var && cur function is static => RefInStatic
+    // <not object>.a (e.g.: Class.a, 1.a) / object.method => BadFieldAccess
+    // object.field_var, where object's class is not self or any of ancestors => PrivateFieldAccess
 
     match &v.owner {
       Some(o) => {
@@ -394,7 +376,7 @@ impl<'a> TypePass<'a> {
   fn call(&mut self, c: &'a Call<'a>, loc: Loc) -> Ty<'a> {
     match &c.func.kind {
       ExprKind::VarSel(v) => {
-        match &v.owner {
+        let owner = match &v.owner {
           Some(owner) => {
             self.cur_used = true;
             let owner = self.expr(owner, false);
@@ -406,23 +388,35 @@ impl<'a> TypePass<'a> {
               }
               return Ty::int();
             }
-            match owner.kind {
-              TyKind::Class(cl) | TyKind::Object(cl) => if let Some(sym) = cl.lookup(v.name) {
-                self.check_normal_call(v, c, owner, sym, loc)
-              } else {
-                self.issue(loc, NoSuchField { name: v.name, owner })
-              }
-              _ => self.issue(loc, BadFieldAccess { name: v.name, owner }),
-            }
+            owner
           }
           None => {
-            let cur = self.cur_class.unwrap();
-            if let Some((sym, _owner)) = self.scopes.lookup(v.name) {
-              self.check_normal_call(v, c, Ty::mk_obj(cur), sym, loc)
-            } else {
-              self.issue(loc, NoSuchField { name: v.name, owner: Ty::mk_obj(cur) })
-            }
+            Ty::mk_obj(self.cur_class.unwrap())
           }
+        };
+        match owner.kind {
+          TyKind::Class(cl) | TyKind::Object(cl) => if let Some(sym) = cl.lookup(v.name) {
+            match sym {
+              Symbol::Func(f) => {
+                c.func_ref.set(Some(f));
+                if owner.is_class() && !f.static_ {
+                  // Class.not_static_method()
+                  self.issue(loc, BadFieldAccess { name: v.name, owner })
+                }
+                if v.owner.is_none() {
+                  let cur = self.cur_func_info.clone().unwrap();
+                  if cur.static_ && !f.static_ {
+                    self.issue(c.func.loc, RefInStatic { field: f.name, func: cur.name })
+                  }
+                }
+                self.check_arg_param(&c.arg, f.ret_param_ty.get().unwrap(), f.name, loc)
+              }
+              _ => self.issue(c.func.loc, NotFunc { name: v.name, owner })
+            }
+          } else {
+            self.issue(c.func.loc, NoSuchField { name: v.name, owner })
+          }
+          _ => self.issue(c.func.loc, BadFieldAccess { name: v.name, owner }),
         }
       }
       _ => {
@@ -460,59 +454,19 @@ impl<'a> TypePass<'a> {
     }
   }
 
-  fn check_normal_call(&mut self, v: &'a VarSel<'a>, c: &'a Call<'a>, owner: Ty<'a>, sym: Symbol<'a>, loc: Loc) -> Ty<'a> {
-    match sym {
-      Symbol::Var(v) => {
-        let ty = v.ty.get();
-        match ty.kind {
-          TyKind::Func(func) => {
-            let params = &func[1..];
-            if params.len() != c.arg.len() {
-              self.issue(loc, ArgcMismatch { name: v.name, expect: params.len() as u32, actual: c.arg.len() as u32 })
-            } else {
-              for (idx, (arg, param)) in c.arg.iter().zip(params.iter()).enumerate() {
-                let arg = self.expr(arg, false);
-                if !arg.assignable_to(*param) {
-                  self.issue(c.arg[idx].loc, ArgMismatch { loc: idx as u32 + 1, arg, param: *param })
-                }
-              }
-            }
-            // ret ty
-            func[0]
-          }
-          _ => {
-            self.issue(loc, NotCallableType { ty })
-          }
-        }
-      },
-      Symbol::Func(f) => {
-        c.func_ref.set(Some(f));
-        match &v.owner {
-          Some(_) => if owner.is_class() && !f.static_ {
-            // call a instance method through class name
-            self.issue(loc, BadFieldAccess { name: v.name, owner })
-          }
-          None => {
-            let cur = self.cur_func_info.as_ref().unwrap();
-            if cur.static_ && !f.static_ {
-              let name = cur.name;
-              self.issue(loc, RefInStatic { field: f.name, func: name })
-            }
-          }
-        };
-        if f.param.len() != c.arg.len() {
-          self.issue(loc, ArgcMismatch { name: v.name, expect: f.param.len() as u32, actual: c.arg.len() as u32 })
-        } else {
-          for (idx, (arg, param)) in c.arg.iter().zip(f.param.iter()).enumerate() {
-            let arg = self.expr(arg, false);
-            if !arg.assignable_to(param.ty.get()) {
-              self.issue(c.arg[idx].loc, ArgMismatch { loc: idx as u32 + 1, arg, param: param.ty.get() })
-            }
-          }
-        }
-        f.ret_ty()
-      }
-      _ => self.issue(loc, NotFunc { name: v.name, owner }),
+  fn check_arg_param(&mut self, arg: &'a [Expr<'a>], ret_param: &[Ty<'a>], name: &'a str, loc: Loc) -> Ty<'a> {
+    let (ret, param) = (ret_param[0], &ret_param[1..]);
+    if param.len() != arg.len() {
+      self.issue(loc, ArgcMismatch { name, expect: param.len() as u32, actual: arg.len() as u32 })
     }
+    for (idx, arg0) in arg.iter().enumerate() {
+      let arg = self.expr(arg0, false);
+      if let Some(&param) = param.get(idx) {
+        if !arg.assignable_to(param) {
+          self.issue(arg0.loc, ArgMismatch { loc: idx as u32 + 1, arg, param })
+        }
+      }
+    }
+    ret
   }
 }
