@@ -88,10 +88,10 @@ impl<'a> Ty<'a> {
               // lowest common ancestor
               let mut res = Ty::mk_obj(parent_c1[0]);
               for i in 1..std::cmp::min(parent_c1.len(), parent_c2.len()) {
-                res = Ty::mk_obj(parent_c1[i-1]);
                 if parent_c1[i].loc != parent_c2[i].loc {
                   break;
                 }
+                res = Ty::mk_obj(parent_c1[i]);
               }
               res
             } else {
