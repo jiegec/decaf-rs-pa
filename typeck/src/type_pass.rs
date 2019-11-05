@@ -139,7 +139,7 @@ impl<'a> TypePass<'a> {
         if !actual.assignable_to(expect) {
           self.issue(s.loc, ReturnMismatch { actual, expect })
         }
-        self.cur_return_ty.push(Ty::void());
+        self.cur_return_ty.push(actual);
         true
       }
       StmtKind::Print(p) => {

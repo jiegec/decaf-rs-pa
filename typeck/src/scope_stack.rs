@@ -36,6 +36,10 @@ impl<'a> ScopeStack<'a> {
             continue;
           }
         }
+        if owner.is_class() {
+          // can write class variable, however
+          across_lambda = false;
+        }
         return (Some(sym), across_lambda);
       }
       if owner.is_lambda() {
