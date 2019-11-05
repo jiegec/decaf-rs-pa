@@ -82,7 +82,7 @@ impl<'a> TypePass<'a> {
         let old = self.cur_assign_loc;
         self.cur_assign_loc = Some(a.loc);
         let (l, r) = (self.expr(&a.dst, true), self.expr(&a.src, false));
-        if l.is_func() || !r.assignable_to(l) {
+        if !r.assignable_to(l) {
           self.issue(s.loc, IncompatibleBinary { l, op: "=", r })
         }
         self.cur_assign_loc = old;
@@ -322,6 +322,41 @@ impl<'a> TypePass<'a> {
             }
             None => self.issue(loc, NoSuchField { name: v.name, owner: o_t })
           }
+          Ty { arr: 0, kind: TyKind::Class(Ref(c)) } => match c.lookup(v.name) {
+            Some(sym) => {
+              match sym {
+                Symbol::Var(var) => {
+                  v.var.set(Some(var));
+                  // only allow self & descendents to access field
+                  if !self.cur_class.unwrap().extends(c) {
+                    self.issue(loc, PrivateFieldAccess { name: v.name, owner: o_t })
+                  }
+                  var.ty.get()
+                }
+                Symbol::Func(f) => {
+                  let cur_func_info = self.cur_func_info.as_ref().unwrap();
+                  if !f.static_ && cur_func_info.static_ {
+                    self.issue(loc, BadFieldAccess { name: v.name, owner: o_t })
+                  }
+                  sym.ty()
+                }
+                _ => sym.ty(),
+              }
+            }
+            None => self.issue(loc, NoSuchField { name: v.name, owner: o_t })
+          }
+          _ if o_t.is_arr() => {
+            if v.name == LENGTH {
+              let ty = iter::once(Ty::int());
+              let ret_param_ty = self.alloc.ty.alloc_extend(ty);
+              Ty {
+                arr: 0,
+                kind: TyKind::Func(ret_param_ty),
+              }
+            } else {
+              self.issue(loc, NotCallableType { ty: o_t })
+            }
+          }
           e if e == Ty::error() => Ty::error(),
           _ => self.issue(loc, BadFieldAccess { name: v.name, owner: o_t }),
         }
@@ -351,7 +386,7 @@ impl<'a> TypePass<'a> {
             Symbol::Func(f) => {
               if let Some(_class) = f.class.get() {
                 let cur = self.cur_func_info.as_ref().unwrap();
-                if cur.static_ {
+                if cur.static_ && !f.static_ {
                   let name = cur.name;
                   self.issue(loc, RefInStatic { field: v.name, func: name })
                 }
@@ -374,74 +409,18 @@ impl<'a> TypePass<'a> {
   }
 
   fn call(&mut self, c: &'a Call<'a>, loc: Loc) -> Ty<'a> {
-    match &c.func.kind {
-      ExprKind::VarSel(v) => {
-        let owner = match &v.owner {
-          Some(owner) => {
-            self.cur_used = true;
-            let owner = self.expr(owner, false);
-            self.cur_used = false;
-            if owner == Ty::error() { return Ty::error(); }
-            if v.name == LENGTH && owner.is_arr() {
-              if !c.arg.is_empty() {
-                self.issue(loc, LengthWithArgument(c.arg.len() as u32))
-              }
-              return Ty::int();
-            }
-            owner
+    let ty = self.expr(&c.func, false);
+    match ty.kind {
+      TyKind::Func(f) => {
+        match &c.func.kind {
+          ExprKind::VarSel(v) => {
+            self.check_arg_param(&c.arg, f, v.name, loc)
           }
-          None => {
-            Ty::mk_obj(self.cur_class.unwrap())
-          }
-        };
-        match owner.kind {
-          TyKind::Class(cl) | TyKind::Object(cl) => if let Some(sym) = cl.lookup(v.name) {
-            match sym {
-              Symbol::Func(f) => {
-                c.func_ref.set(Some(f));
-                if owner.is_class() && !f.static_ {
-                  // Class.not_static_method()
-                  self.issue(loc, BadFieldAccess { name: v.name, owner })
-                }
-                if v.owner.is_none() {
-                  let cur = self.cur_func_info.clone().unwrap();
-                  if cur.static_ && !f.static_ {
-                    self.issue(c.func.loc, RefInStatic { field: f.name, func: cur.name })
-                  }
-                }
-                self.check_arg_param(&c.arg, f.ret_param_ty.get().unwrap(), f.name, loc)
-              }
-              _ => self.issue(c.func.loc, NotFunc { name: v.name, owner })
-            }
-          } else {
-            self.issue(c.func.loc, NoSuchField { name: v.name, owner })
-          }
-          _ => self.issue(c.func.loc, BadFieldAccess { name: v.name, owner }),
+          _ => self.check_arg_param(&c.arg, f, "lambda", loc)
         }
       }
-      _ => {
-        let ty = self.expr(&c.func, false);
-        match ty.kind {
-          TyKind::Func(func) => {
-            let params = &func[1..];
-            if params.len() != c.arg.len() {
-              self.issue(loc, LambdaArgcMismatch { expect: params.len() as u32, actual: c.arg.len() as u32 })
-            } else {
-              for (idx, (arg, param)) in c.arg.iter().zip(params.iter()).enumerate() {
-                let arg = self.expr(arg, false);
-                if !arg.assignable_to(*param) {
-                  self.issue(c.arg[idx].loc, ArgMismatch { loc: idx as u32 + 1, arg, param: *param })
-                }
-              }
-            }
-            // ret ty
-            func[0]
-          }
-          _ => {
-            self.issue(loc, NotCallableType { ty })
-          }
-        }
-      }
+      TyKind::Error => Ty::error(),
+      _ => self.issue(loc, NotCallableType { ty })
     }
   }
 }
