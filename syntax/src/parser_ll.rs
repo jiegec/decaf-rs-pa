@@ -116,7 +116,6 @@ pub enum ArrayDimOrFunction<'p> {
 }
 
 #[ll1(Program)]
-#[verbose("ll1.txt")]
 #[lex(r##"
 priority = []
 

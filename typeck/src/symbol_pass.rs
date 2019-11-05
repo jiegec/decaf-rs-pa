@@ -178,6 +178,10 @@ impl<'a> SymbolPass<'a> {
   fn expr(&mut self, e: &'a Expr<'a>) {
     use ExprKind::*;
     match &e.kind {
+      IndexSel(i) => {
+        self.expr(&i.arr);
+        self.expr(&i.idx);
+      }
       Lambda(l) => {
         self.scopes.declare(Symbol::Lambda(l));
         self.scoped(ScopeOwner::Lambda(&l), |s| {
@@ -202,6 +206,9 @@ impl<'a> SymbolPass<'a> {
           self.expr(arg);
         }
       },
+      NewArray(n) => {
+        self.expr(&n.len);
+      }
       _ => {}
     }
   }

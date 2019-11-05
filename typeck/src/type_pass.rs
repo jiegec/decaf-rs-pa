@@ -101,8 +101,12 @@ impl<'a> TypePass<'a> {
           // type deduction
           if l.get().is_var() {
             // cannot deduct void type
-            if r == Ty::void() { self.issue(v.loc, VoidVar(v.name)) }
-            l.set(r);
+            if r == Ty::void() {
+              l.set(Ty::error());
+              self.issue(v.loc, VoidVar(v.name))
+            } else {
+              l.set(r);
+            }
           }
         }
         self.scopes.end_var_def();

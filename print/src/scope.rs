@@ -81,6 +81,10 @@ pub fn stmt(s: &Stmt, p: &mut IndentPrinter) {
 
 pub fn expr(e: &Expr, p: &mut IndentPrinter) {
   match &e.kind {
+    ExprKind::IndexSel(i) => {
+      expr(&i.arr, p);
+      expr(&i.idx, p);
+    }
     ExprKind::Lambda(l) => {
       write!(p, "FORMAL SCOPE OF 'lambda@{:?}':", l.loc).ignore();
       p.indent(|p| {
@@ -102,6 +106,9 @@ pub fn expr(e: &Expr, p: &mut IndentPrinter) {
       for arg in c.arg.iter() {
         expr(arg, p);
       }
+    }
+    ExprKind::NewArray(n) => {
+      expr(&n.len, p);
     }
     _ => {}
   }
