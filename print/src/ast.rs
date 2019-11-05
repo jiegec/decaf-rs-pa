@@ -1,7 +1,6 @@
 use common::{IndentPrinter, IgnoreResult};
 use syntax::*;
 use std::fmt::Write;
-use either::{Either, Left, Right};
 
 pub fn program(pr: &Program, p: &mut IndentPrinter) { pr.print(p); }
 
@@ -33,11 +32,11 @@ impl<T: Printable> Printable for Option<T> {
   }
 }
 
-impl<L: Printable, R: Printable> Printable for Either<L, R> {
+impl<'a> Printable for LambdaBody<'a> {
   fn print(&self, p: &mut IndentPrinter) {
     match self {
-      Left(l) => l.print(p),
-      Right(r) => r.print(p),
+      LambdaBody::Block(b) => b.print(p),
+      LambdaBody::Expr((e, _)) => e.print(p),
     }
   }
 }

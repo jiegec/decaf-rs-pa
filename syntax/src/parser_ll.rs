@@ -3,7 +3,6 @@
 use crate::{ast::*, ty::*, VecExt, dft, check_str, mk_expr, mk_stmt, mk_int_lit, mk_block};
 use parser_macros::ll1;
 use common::{ErrorKind, Loc, NO_LOC, BinOp, UnOp, Errors, HashSet, HashMap};
-use either::{Either, Left, Right};
 
 pub fn work<'p>(code: &'p str, alloc: &'p ASTAlloc<'p>) -> Result<&'p Program<'p>, Errors<'p, Ty<'p>>> {
   let mut parser = Parser { alloc, error: Errors::default() };
@@ -386,8 +385,8 @@ impl<'p> Parser<'p> {
   #[rule(Expr -> Expr1)]
   fn expr(e: Expr<'p>) -> Expr<'p> { e }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar ExprOrBlock)]
-  fn expr_function(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Either<Box<Expr<'p>>, Box<Block<'p>>>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { loc: f.loc(), param: param.reversed(), body, scope: dft(), ret_param_ty: dft() }.into())
+  fn expr_function(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: LambdaBody<'p>) -> Expr<'p> {
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param: param.reversed(), body, scope: dft(), ret_param_ty: dft(), name: format!("lambda@{:?}", f.loc()) }.into())
   }
 
   #[rule(Expr1 -> Expr2 Term1)]
@@ -542,9 +541,9 @@ impl<'p> Parser<'p> {
   fn new_array_rem0(len: Expr<'p>, _r: Token) -> (u32, Expr<'p>) { (0, len) }
 
   #[rule(ExprOrBlock -> Rocket Expr)]
-  fn expr_or_block_expr(_r: Token, expr: Expr<'p>) -> Either<Box<Expr<'p>>, Box<Block<'p>>> { Left(Box::new(expr)) }
+  fn expr_or_block_expr(_r: Token, expr: Expr<'p>) -> LambdaBody<'p> { LambdaBody::Expr((Box::new(expr), dft())) }
   #[rule(ExprOrBlock -> Block)]
-  fn expr_or_block_block(block: Block<'p>) -> Either<Box<Expr<'p>>, Box<Block<'p>>> { Right(Box::new(block)) }
+  fn expr_or_block_block(block: Block<'p>) -> LambdaBody<'p> { LambdaBody::Block(Box::new(block)) }
 
   #[rule(SimpleType -> Int)]
   fn type_int(i: Token) -> SynTy<'p> { SynTy { loc: i.loc(), arr: 0, kind: SynTyKind::Int, function_type: None } }

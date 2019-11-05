@@ -2,7 +2,6 @@ use crate::{ty::*, symbol::*};
 use common::{Loc, Ref, BinOp, UnOp};
 use typed_arena::Arena;
 use std::cell::{Cell, RefCell};
-use either::Either;
 
 #[derive(Default)]
 pub struct ASTAlloc<'a> {
@@ -256,10 +255,16 @@ pub struct ReadInt;
 
 pub struct ReadLine;
 
+pub enum LambdaBody<'a> {
+  Expr((Box<Expr<'a>>, RefCell<Scope<'a>>)),
+  Block(Box<Block<'a>>),
+}
+
 pub struct Lambda<'a> {
   pub loc: Loc,
+  pub name: String,
   pub param: Vec<&'a VarDef<'a>>,
-  pub body: Either<Box<Expr<'a>>, Box<Block<'a>>>,
+  pub body: LambdaBody<'a>,
   pub scope: RefCell<Scope<'a>>,
   // placing ret and param ty in one slice is mainly to some space, especially the size of struct Ty
   // [0] is ret_ty, [1..] is parm_ty

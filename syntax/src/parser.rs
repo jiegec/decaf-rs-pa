@@ -1,7 +1,6 @@
 use crate::{ast::*, ty::*, VecExt, dft, check_str, mk_stmt, mk_expr, mk_int_lit, mk_block};
 use parser_macros::lalr1;
 use common::{ErrorKind, Loc, BinOp, UnOp, Errors, NO_LOC};
-use either::{Left, Right};
 
 pub fn work<'p>(code: &'p str, alloc: &'p ASTAlloc<'p>) -> Result<&'p Program<'p>, Errors<'p, Ty<'p>>> {
   let mut parser = Parser { alloc, error: Errors::default() };
@@ -324,11 +323,11 @@ impl<'p> Parser<'p> {
   }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Rocket Expr)]
   fn expr_lambda_expr(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, _r: Token, expr: Expr<'p>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Left(Box::new(expr)), scope: dft(), ret_param_ty: dft() }.into())
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: LambdaBody::Expr((Box::new(expr), dft())), scope: dft(), ret_param_ty: dft(), name: format!("lambda@{:?}", f.loc()) }.into())
   }
   #[rule(Expr -> Fun LPar VarDefListOrEmpty RPar Block)]
   fn expr_lambda_block(f: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, block: Block<'p>) -> Expr<'p> {
-    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: Right(Box::new(block)), scope: dft(), ret_param_ty: dft() }.into())
+    mk_expr(f.loc(), Lambda { loc: f.loc(), param, body: LambdaBody::Block(Box::new(block)), scope: dft(), ret_param_ty: dft(), name: format!("lambda@{:?}", f.loc()) }.into())
   }
 
   #[rule(ExprList -> ExprList Comma Expr)]

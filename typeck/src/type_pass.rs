@@ -3,7 +3,6 @@ use common::{ErrorKind::*, Loc, LENGTH, BinOp, UnOp, ErrorKind, Ref};
 use syntax::ast::*;
 use syntax::{ScopeOwner, Symbol, ty::*};
 use std::ops::{Deref, DerefMut};
-use either::Either;
 use std::iter;
 
 pub(crate) struct TypePass<'a>(pub TypeCk<'a>);
@@ -47,7 +46,7 @@ impl<'a> TypePass<'a> {
       old.append(&mut self.cur_return_ty);
     }
     let mut ret = false;
-    self.scoped(ScopeOwner::Local(b), |s| for st in &b.stmt {
+    self.scoped(ScopeOwner::Local(b.loc, &b.scope), |s| for st in &b.stmt {
       ret = s.stmt(st);
     });
     if lambda {
@@ -123,7 +122,7 @@ impl<'a> TypePass<'a> {
         self.loop_cnt -= 1;
         false
       }
-      StmtKind::For(f) => self.scoped(ScopeOwner::Local(&f.body), |s| {
+      StmtKind::For(f) => self.scoped(ScopeOwner::Local(f.body.loc, &f.body.scope), |s| {
         s.stmt(&f.init);
         s.check_bool(&f.cond);
         s.stmt(&f.update);
@@ -237,10 +236,10 @@ impl<'a> TypePass<'a> {
           ret_ty: Ty::var()
         });
         let ret_ty = match &l.body {
-          Either::Left(expr) => {
+          LambdaBody::Expr((expr, _)) => {
             s.expr(&expr, false)
           },
-          Either::Right(block) => {
+          LambdaBody::Block(block) => {
             s.block(&block, true).unwrap_or(Ty::void())
           },
         };
@@ -327,9 +326,9 @@ impl<'a> TypePass<'a> {
               match sym {
                 Symbol::Var(var) => {
                   v.var.set(Some(var));
-                  // only allow self & descendents to access field
-                  if !self.cur_class.unwrap().extends(c) {
-                    self.issue(loc, PrivateFieldAccess { name: v.name, owner: o_t })
+                  let cur_func_info = self.cur_func_info.as_ref().unwrap();
+                  if cur_func_info.static_ {
+                    self.issue(loc, BadFieldAccess { name: v.name, owner: o_t })
                   }
                   var.ty.get()
                 }
@@ -399,6 +398,7 @@ impl<'a> TypePass<'a> {
                 self.issue(loc, UndeclaredVar(v.name))
               } else { Ty::mk_class(c) }
             }
+            _ => Ty::error()
           }
           None => self.errors.issue(loc, UndeclaredVar(v.name)),
         };
@@ -414,9 +414,9 @@ impl<'a> TypePass<'a> {
       TyKind::Func(f) => {
         match &c.func.kind {
           ExprKind::VarSel(v) => {
-            self.check_arg_param(&c.arg, f, v.name, loc)
+            self.check_arg_param(&c.arg, f, Some(v.name), loc)
           }
-          _ => self.check_arg_param(&c.arg, f, "lambda", loc)
+          _ => self.check_arg_param(&c.arg, f, None, loc)
         }
       }
       TyKind::Error => Ty::error(),
@@ -433,10 +433,14 @@ impl<'a> TypePass<'a> {
     }
   }
 
-  fn check_arg_param(&mut self, arg: &'a [Expr<'a>], ret_param: &[Ty<'a>], name: &'a str, loc: Loc) -> Ty<'a> {
+  fn check_arg_param(&mut self, arg: &'a [Expr<'a>], ret_param: &[Ty<'a>], name: Option<&'a str>, loc: Loc) -> Ty<'a> {
     let (ret, param) = (ret_param[0], &ret_param[1..]);
     if param.len() != arg.len() {
-      self.issue(loc, ArgcMismatch { name, expect: param.len() as u32, actual: arg.len() as u32 })
+      if let Some(name) = name {
+        self.issue(loc, ArgcMismatch { name, expect: param.len() as u32, actual: arg.len() as u32 })
+      } else {
+        self.issue(loc, LambdaArgcMismatch { expect: param.len() as u32, actual: arg.len() as u32 })
+      }
     }
     for (idx, arg0) in arg.iter().enumerate() {
       let arg = self.expr(arg0, false);

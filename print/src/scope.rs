@@ -1,7 +1,6 @@
 use common::{IndentPrinter, IgnoreResult};
 use syntax::{ast::*, Scope};
 use std::fmt::Write;
-use either::Either;
 
 fn show_scope(s: &Scope, p: &mut IndentPrinter) {
   let mut s = s.iter().map(|(_, sym)| *sym).collect::<Vec<_>>();
@@ -61,6 +60,11 @@ pub fn stmt(s: &Stmt, p: &mut IndentPrinter) {
     StmtKind::While(w) => block(&w.body, p),
     StmtKind::For(f) => block(&f.body, p),
     StmtKind::Block(b) => block(b, p),
+    StmtKind::Return(r) => {
+      if let Some(e) = r {
+        expr(e, p);
+      }
+    }
     _ => {}
   }
 }
@@ -68,19 +72,26 @@ pub fn stmt(s: &Stmt, p: &mut IndentPrinter) {
 pub fn expr(e: &Expr, p: &mut IndentPrinter) {
   match &e.kind {
     ExprKind::Lambda(l) => {
-      write!(p, "LOCAL SCOPE:").ignore();
+      write!(p, "FORMAL SCOPE OF 'lambda@{:?}':", l.loc).ignore();
       p.indent(|p| {
         show_scope(&l.scope.borrow(), p);
         match &l.body {
-          Either::Left(e) => expr(e, p),
-          Either::Right(b) => {
-            show_scope(&b.scope.borrow(), p);
-            for s in &b.stmt {
-              stmt(s, p);
-            }
-          },
+          LambdaBody::Expr((e, scope)) => {
+            write!(p, "LOCAL SCOPE:").ignore();
+            p.indent(|p| {
+              show_scope(&scope.borrow(), p);
+              expr(e, p);
+            });
+          }
+          LambdaBody::Block(b) => block(b, p),
         }
       });
+    }
+    ExprKind::Call(c) => {
+      expr(&c.func, p);
+      for arg in c.arg.iter() {
+        expr(arg, p);
+      }
     }
     _ => {}
   }

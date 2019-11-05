@@ -3,7 +3,6 @@ use common::{ErrorKind::*, Ref, MAIN_CLASS, MAIN_METHOD, NO_LOC, HashMap, HashSe
 use syntax::{ast::*, ScopeOwner, Symbol, Ty};
 use std::{ops::{Deref, DerefMut}, iter};
 use hashbrown::hash_map::Entry;
-use either::Either;
 
 pub(crate) struct SymbolPass<'a>(pub TypeCk<'a>);
 
@@ -120,7 +119,7 @@ impl<'a> SymbolPass<'a> {
         (ScopeOwner::Class(c1), ScopeOwner::Class(c2)) if Ref(c1) != Ref(c2) && sym.is_var() => {
           self.issue(v.loc, OverrideVar(v.name))
         },
-        (ScopeOwner::Class(_), ScopeOwner::Class(_)) | (_, ScopeOwner::Param(_)) | (_, ScopeOwner::Local(_)) =>
+        (ScopeOwner::Class(_), ScopeOwner::Class(_)) | (_, ScopeOwner::Param(_)) | (_, ScopeOwner::Local(_,_)) =>
           self.issue(v.loc, ConflictDeclaration { prev: sym.loc(), name: v.name }),
         _ => true,
       }
@@ -135,7 +134,7 @@ impl<'a> SymbolPass<'a> {
   }
 
   fn block(&mut self, b: &'a Block<'a>) {
-    self.scoped(ScopeOwner::Local(b), |s| for st in &b.stmt { s.stmt(st); });
+    self.scoped(ScopeOwner::Local(b.loc, &b.scope), |s| for st in &b.stmt { s.stmt(st); });
   }
 
   fn stmt(&mut self, s: &'a Stmt<'a>) {
@@ -153,7 +152,7 @@ impl<'a> SymbolPass<'a> {
         if let Some(of) = &i.on_false { self.block(of); }
       }
       StmtKind::While(w) => self.block(&w.body),
-      StmtKind::For(f) => self.scoped(ScopeOwner::Local(&f.body), |s| {
+      StmtKind::For(f) => self.scoped(ScopeOwner::Local(f.body.loc, &f.body.scope), |s| {
         s.stmt(&f.init);
         s.stmt(&f.update);
         for st in &f.body.stmt { s.stmt(st); }
@@ -176,19 +175,24 @@ impl<'a> SymbolPass<'a> {
   fn expr(&mut self, e: &'a Expr<'a>) {
     use ExprKind::*;
     match &e.kind {
-      Lambda(l) => self.scoped(ScopeOwner::Lambda(&l), |s| {
-        for param in l.param.iter() {
-          s.var_def(param);
-        }
-        match &l.body {
-          Either::Left(expr) => {
-            s.expr(expr)
-          },
-          Either::Right(block) => {
-            s.block(block)
+      Lambda(l) => {
+        self.scopes.declare(Symbol::Lambda(l));
+        self.scoped(ScopeOwner::Lambda(&l), |s| {
+          for param in l.param.iter() {
+            s.var_def(param);
           }
-        }
-      }),
+          match &l.body {
+            LambdaBody::Expr((expr, scope)) => {
+              s.scoped(ScopeOwner::Local(e.loc, scope), |s| {
+                s.expr(expr);
+              });
+            },
+            LambdaBody::Block(block) => {
+              s.block(block)
+            }
+          }
+        })
+      },
       Call(c) => {
         self.expr(&c.func);
         for arg in c.arg.iter() {
