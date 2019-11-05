@@ -116,9 +116,13 @@ impl<'a> Ty<'a> {
         (Func(rp1), Func(rp2)) => {
           let (r1, p1, r2, p2) = (&rp1[0], &rp1[1..], &rp2[0], &rp2[1..]);
           // when looking for ancestor type of func: for return value, use ancestor; for arguments, use descendant
-          let res = iter::once(r1.find_common(*r2, arena, upwards)).chain(p1.iter().zip(p2).map(|(r1, r2)| r1.find_common(*r2, arena, !upwards)));
-          let res = arena.alloc_extend(res);
-          Ty { arr: 0, kind: TyKind::Func(res) }
+          let res: Vec<_> = iter::once(r1.find_common(*r2, arena, upwards)).chain(p1.iter().zip(p2).map(|(r1, r2)| r1.find_common(*r2, arena, !upwards))).collect();
+          if res.iter().any(|ty| ty.kind == TyKind::Error) {
+            Ty::error()
+          } else {
+            let res = arena.alloc_extend(res);
+            Ty { arr: 0, kind: TyKind::Func(res) }
+          }
         }
         _ => Ty::error(),
       }

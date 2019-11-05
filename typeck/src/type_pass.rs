@@ -52,6 +52,10 @@ impl<'a> TypePass<'a> {
     if lambda {
       let res = if let Some(ty) = self.cur_return_ty.iter().next() {
         let mut cur_ty = *ty;
+        let non_void = self.cur_return_ty.iter().any(|ty| ty.kind != TyKind::Void);
+        if non_void && !ret {
+          self.issue(b.loc, NoReturn)
+        }
         for next_ty in self.cur_return_ty.iter().skip(1) {
           cur_ty = cur_ty.find_common(*next_ty, &self.alloc.ty, true);
         }
