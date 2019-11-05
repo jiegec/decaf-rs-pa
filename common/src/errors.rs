@@ -78,6 +78,7 @@ pub enum ErrorKind<'a, Ty> {
   AssignCapturedVarInLambda,
   IncompatibleReturnTypeOfBlock,
   NotCallableType { ty: Ty },
+  AssignClassMemberMethod { name: &'a str },
 }
 
 impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
@@ -126,6 +127,7 @@ impl<Ty: fmt::Debug> fmt::Debug for ErrorKind<'_, Ty> {
       AssignCapturedVarInLambda => write!(f, "cannot assign value to captured variables in lambda expression"),
       IncompatibleReturnTypeOfBlock => write!(f, "incompatible return types in blocked expression"),
       NotCallableType { ty } => write!(f, "{:?} is not a callable type", ty),
+      AssignClassMemberMethod { name } => write!(f, "cannot assign value to class member method '{}'", name),
     }
   }
 }

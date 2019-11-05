@@ -316,6 +316,13 @@ impl<'a> TypePass<'a> {
                   }
                   var.ty.get()
                 }
+                Symbol::Func(_func) => {
+                  if lvalue {
+                    let loc = self.cur_assign_loc.unwrap();
+                    self.issue(loc, AssignClassMemberMethod { name: v.name })
+                  }
+                  sym.ty()
+                }
                 _ => sym.ty(),
               }
             }
@@ -324,18 +331,15 @@ impl<'a> TypePass<'a> {
           Ty { arr: 0, kind: TyKind::Class(Ref(c)) } => match c.lookup(v.name) {
             Some(sym) => {
               match sym {
-                Symbol::Var(var) => {
-                  v.var.set(Some(var));
-                  let cur_func_info = self.cur_func_info.as_ref().unwrap();
-                  if cur_func_info.static_ {
-                    self.issue(loc, BadFieldAccess { name: v.name, owner: o_t })
-                  }
-                  var.ty.get()
+                Symbol::Var(_var) => {
+                  self.issue(loc, BadFieldAccess { name: v.name, owner: o_t })
                 }
                 Symbol::Func(f) => {
-                  let cur_func_info = self.cur_func_info.as_ref().unwrap();
-                  if !f.static_ && cur_func_info.static_ {
+                  if !f.static_ {
                     self.issue(loc, BadFieldAccess { name: v.name, owner: o_t })
+                  } else if lvalue {
+                    let loc = self.cur_assign_loc.unwrap();
+                    self.issue(loc, AssignClassMemberMethod { name: v.name })
                   }
                   sym.ty()
                 }
@@ -388,6 +392,10 @@ impl<'a> TypePass<'a> {
                 if cur.static_ && !f.static_ {
                   let name = cur.name;
                   self.issue(loc, RefInStatic { field: v.name, func: name })
+                }
+                if lvalue {
+                  let loc = self.cur_assign_loc.unwrap();
+                  self.issue(loc, AssignClassMemberMethod { name: v.name })
                 }
               }
               Ty::mk_func(f)

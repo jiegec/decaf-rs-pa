@@ -65,6 +65,10 @@ pub fn stmt(s: &Stmt, p: &mut IndentPrinter) {
         expr(e, p);
       }
     }
+    StmtKind::Assign(a) => {
+      expr(&a.dst, p);
+      expr(&a.src, p);
+    }
     _ => {}
   }
 }
