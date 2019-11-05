@@ -58,7 +58,12 @@ pub fn stmt(s: &Stmt, p: &mut IndentPrinter) {
       if let Some(on_false) = &i.on_false { block(on_false, p); }
     }
     StmtKind::While(w) => block(&w.body, p),
-    StmtKind::For(f) => block(&f.body, p),
+    StmtKind::For(f) => {
+      stmt(&f.init, p);
+      expr(&f.cond, p);
+      stmt(&f.update, p);
+      block(&f.body, p);
+    }
     StmtKind::Block(b) => block(b, p),
     StmtKind::Return(r) => {
       if let Some(e) = r {
@@ -69,6 +74,7 @@ pub fn stmt(s: &Stmt, p: &mut IndentPrinter) {
       expr(&a.dst, p);
       expr(&a.src, p);
     }
+    StmtKind::ExprEval(e) => expr(e, p),
     _ => {}
   }
 }

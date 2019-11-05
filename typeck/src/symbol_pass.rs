@@ -119,7 +119,10 @@ impl<'a> SymbolPass<'a> {
         (ScopeOwner::Class(c1), ScopeOwner::Class(c2)) if Ref(c1) != Ref(c2) && sym.is_var() => {
           self.issue(v.loc, OverrideVar(v.name))
         },
-        (ScopeOwner::Class(_), ScopeOwner::Class(_)) | (_, ScopeOwner::Param(_)) | (_, ScopeOwner::Local(_,_)) =>
+        (ScopeOwner::Class(_), ScopeOwner::Class(_))
+          | (_, ScopeOwner::Param(_))
+          | (_, ScopeOwner::Local(_,_))
+          | (_, ScopeOwner::Lambda(_)) =>
           self.issue(v.loc, ConflictDeclaration { prev: sym.loc(), name: v.name }),
         _ => true,
       }
@@ -127,9 +130,9 @@ impl<'a> SymbolPass<'a> {
     if ok {
       v.owner.set(Some(self.scopes.cur_owner()));
       self.scopes.declare(Symbol::Var(v));
-      if let Some((_loc, expr)) = &v.init {
-        self.expr(&expr);
-      }
+    }
+    if let Some((_loc, expr)) = &v.init {
+      self.expr(&expr);
     }
   }
 
