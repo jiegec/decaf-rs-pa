@@ -29,7 +29,16 @@ fn main() {
       std::process::exit(1);
     }
   }
+  #[cfg(not(feature = "fn"))]
   for result in test_all("testcase/S2-rs", Pa::Pa2).unwrap() {
+    println!("{:?}", result);
+    if let ResultKind::Pass = result.kind {
+    } else {
+      std::process::exit(1);
+    }
+  }
+  #[cfg(feature = "fn")]
+  for result in test_all("testcase/S2", Pa::Pa2).unwrap() {
     println!("{:?}", result);
     if let ResultKind::Pass = result.kind {
     } else {
