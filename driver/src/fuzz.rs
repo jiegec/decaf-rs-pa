@@ -8,7 +8,7 @@ fn main() -> io::Result<()> {
         let alloc = ebnf_tools::ASTAlloc::default();
         let ebnf = ebnf_tools::work(code, &alloc);
         if let Ok(ebnf) = ebnf {
-            let gen = ebnf.generate(&ebnf);
+            let gen = ebnf.generate(&ebnf, 20);
             let pa = driver::Pa::Pa1b;
             let alloc = driver::Alloc::default();
             let result = driver::compile(&gen, &alloc, pa.to_cfg());
