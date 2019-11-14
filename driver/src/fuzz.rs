@@ -1,12 +1,12 @@
 use std::io;
 use std::fs;
-use ebnf_gen::Generate;
+use ebnf_tools::Generate;
 
 fn main() -> io::Result<()> {
     loop {
         let code = include_str!("../decaf-2019.ebnf");
-        let alloc = ebnf_gen::ASTAlloc::default();
-        let ebnf = ebnf_gen::work(code, &alloc);
+        let alloc = ebnf_tools::ASTAlloc::default();
+        let ebnf = ebnf_tools::work(code, &alloc);
         if let Ok(ebnf) = ebnf {
             let gen = ebnf.generate(&ebnf);
             let pa = driver::Pa::Pa1b;
