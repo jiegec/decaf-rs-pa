@@ -20,7 +20,7 @@ typed-arena = "1.4.1"
 tacvm = { git = "https://github.com/MashPlant/tacvm" }
 colored = "1.8"
 clap = "2"
-ebnf-gen = { git = "https://github.com/jiegec/ebnf-tools", branch = "old" }
+ebnf-gen = { git = "https://github.com/jiegec/ebnf-gen" }
 backtrace = "0.3"
 
 [lib]
