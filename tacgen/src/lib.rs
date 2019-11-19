@@ -225,7 +225,9 @@ impl<'a> TacGen<'a> {
           let addr = self.intrinsic(_Alloc, f).unwrap();
           if func.static_ {
             let idx = self.func_info[&Ref(func)].idx;
-            f.push(Store { src_base: [Const(idx as i32), Reg(addr)], off: 0, hint: MemHint::Immutable });
+            let temp = self.reg();
+            f.push(LoadFunc { dst: temp, f: idx });
+            f.push(Store { src_base: [Reg(temp), Reg(addr)], off: 0, hint: MemHint::Immutable });
             f.push(Store { src_base: [Const(0), Reg(addr)], off: 4, hint: MemHint::Immutable });
           } else {
             let owner = v.owner.as_ref().map(|o| self.expr(o, f)).unwrap_or(Reg(0));
