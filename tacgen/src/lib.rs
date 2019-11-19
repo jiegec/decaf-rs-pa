@@ -21,9 +21,14 @@ struct TacGen<'a> {
   class_info: HashMap<Ref<'a, ClassDef<'a>>, ClassInfo<'a>>,
   // current lambda index
   cur_lambda_idx: u32,
+  // current tac arena
   cur_alloc: Option<&'a Arena<TacNode<'a>>>,
+  // working in lambda
   in_lambda: bool,
+  // all lambda functions
   lambda_func: Vec<TacFunc<'a>>,
+  // current function static
+  cur_func_static: bool,
 }
 
 pub fn work<'a>(p: &'a Program<'a>, alloc: &'a Arena<TacNode<'a>>) -> TacProgram<'a> {
@@ -74,6 +79,7 @@ impl<'a> TacGen<'a> {
           self.label_cnt = 0;
           let name = if Ref(c) == Ref(p.main.get().unwrap()) && fu.name == MAIN_METHOD { MAIN_METHOD.into() } else { format!("_{}.{}", c.name, fu.name) };
           let mut f = TacFunc::empty(alloc, name, self.reg_num);
+          self.cur_func_static = fu.static_;
           self.block(fu.body.as_ref().unwrap(), &mut f);
           f.reg_num = self.reg_num;
           // add an return at the end of return-void function
@@ -223,7 +229,18 @@ impl<'a> TacGen<'a> {
             }
             ScopeOwner::Class(_) => { // off is offset
               // `this` is at argument 0
-              let owner = v.owner.as_ref().map(|o| self.expr(o, f)).unwrap_or(Reg(0));
+              let owner = if let Some(o) = &v.owner {
+                self.expr(o, f)
+              } else {
+                if self.in_lambda {
+                  // load captured `this`
+                  let this = self.reg();
+                  f.push(Load { dst: this, base: [Reg(0)], off: 0, hint: MemHint::Obj });
+                  Reg(this)
+                } else {
+                  Reg(0)
+                }
+              };
               match assign {
                 Some(src) => (f.push(Store { src_base: [src, owner], off: off as i32 * INT_SIZE, hint: MemHint::Obj }), 0).1,
                 None => {
@@ -338,7 +355,14 @@ impl<'a> TacGen<'a> {
           }
         }
       }
-      This(_) => Reg(0),
+      This(_) => if self.in_lambda {
+        // load captured `this`
+        let this = self.reg();
+        f.push(Load { dst: this, base: [Reg(0)], off: 0, hint: MemHint::Obj });
+        Reg(this)
+      } else {
+        Reg(0)
+      }
       ReadInt(_) => Reg(self.intrinsic(_ReadInt, f).unwrap()),
       ReadLine(_) => Reg(self.intrinsic(_ReadLine, f).unwrap()),
       NewClass(n) => {
@@ -400,24 +424,47 @@ impl<'a> TacGen<'a> {
         let addr = self.intrinsic(_Alloc, f).unwrap();
 
         // create lambda function
-        let idx = self.cur_lambda_idx;
-        self.cur_lambda_idx += 1;
         let name = format!("_lambda_{}_{}", l.loc.0, l.loc.1);
 
         let cur_var_info = self.var_info.clone();
 
-        // capture all vars into `this`
-        f.push(Param { src: [Const(self.var_info.len() as i32 * INT_SIZE)] });
+        // capture `this` and all vars into closure
+        f.push(Param { src: [Const((self.var_info.len() + 1) as i32 * INT_SIZE)] });
         let this = self.intrinsic(_Alloc, f).unwrap();
+        // capture `this`
+        if !self.cur_func_static {
+          let src = if self.in_lambda {
+            let temp = self.reg();
+            f.push(Load { dst: temp, base: [Reg(0)], off: 0, hint: MemHint::Immutable });
+            temp
+          } else {
+            0
+          };
+          f.push(Store { src_base: [Reg(src), Reg(this)], off: 0, hint: MemHint::Obj });
+        }
+
         let temp = self.reg();
-        for (i, (def, info)) in self.var_info.iter_mut().enumerate() {
+        for (i, (var, info)) in self.var_info.iter_mut().enumerate() {
           // local var
-          f.push(Tac::Assign { dst: temp, src: [Reg(info.off)]});
-          f.push(Store { src_base: [Reg(temp), Reg(this)], off: i as i32 * INT_SIZE as i32, hint: MemHint::Immutable });
-          info.captured = true;
+          match var.owner.get().unwrap() {
+            ScopeOwner::Lambda(_) | ScopeOwner::Local(_,_) | ScopeOwner::Param(_) => {
+              if info.captured {
+                // read from current lambda's closure
+                f.push(Load { dst: temp, base: [Reg(0)], off: info.off as i32 * INT_SIZE, hint: MemHint::Immutable });
+                f.push(Store { src_base: [Reg(temp), Reg(this)], off: (i + 1) as i32 * INT_SIZE, hint: MemHint::Immutable });
+              } else {
+                f.push(Tac::Assign { dst: temp, src: [Reg(info.off)]});
+                f.push(Store { src_base: [Reg(temp), Reg(this)], off: (i + 1) as i32 * INT_SIZE, hint: MemHint::Immutable });
+              }
+              info.captured = true;
+              info.off = (i + 1) as u32;
+            }
+            _ => {}
+          }
         }
 
         // save
+        let cur_func_static = self.cur_func_static;
         let cur_reg_num = self.reg_num;
         let cur_in_lambda = self.in_lambda;
         self.reg_num = l.param.len() as u32 + 1;
@@ -429,7 +476,10 @@ impl<'a> TacGen<'a> {
           self.var_info.insert(Ref(p), VarInfo { off: idx as u32 + 1, captured: false });
         }
         match &l.body {
-          LambdaBody::Block(b) => self.block(b, &mut new_f),
+          LambdaBody::Block(b) => {
+            self.block(b, &mut new_f);
+            new_f.push(Ret { src: None });
+          },
           LambdaBody::Expr((e, _scope)) => {
             let ret = self.expr(e, &mut new_f);
             new_f.push(Ret { src: Some([ret]) });
@@ -439,8 +489,12 @@ impl<'a> TacGen<'a> {
 
         // restore
         self.var_info = cur_var_info;
+        self.cur_func_static = cur_func_static;
         self.in_lambda = cur_in_lambda;
         self.reg_num = cur_reg_num;
+
+        let idx = self.cur_lambda_idx;
+        self.cur_lambda_idx += 1;
         self.lambda_func.push(new_f);
 
         let temp = self.reg();
