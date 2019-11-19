@@ -324,7 +324,8 @@ impl<'a> TypePass<'a> {
                   }
                   var.ty.get()
                 }
-                Symbol::Func(_func) => {
+                Symbol::Func(func) => {
+                  v.func.set(Some(func));
                   if lvalue {
                     let loc = self.cur_assign_loc.unwrap();
                     self.issue(loc, AssignClassMemberMethod { name: v.name })
@@ -343,6 +344,7 @@ impl<'a> TypePass<'a> {
                   self.issue(loc, BadFieldAccess { name: v.name, owner: o_t })
                 }
                 Symbol::Func(f) => {
+                  v.func.set(Some(f));
                   if !f.static_ {
                     self.issue(loc, BadFieldAccess { name: v.name, owner: o_t })
                   } else if lvalue {
@@ -395,6 +397,7 @@ impl<'a> TypePass<'a> {
               var.ty.get()
             }
             Symbol::Func(f) => {
+              v.func.set(Some(f));
               if let Some(_class) = f.class.get() {
                 let cur = self.cur_func_info.as_ref().unwrap();
                 if cur.static_ && !f.static_ {

@@ -444,7 +444,7 @@ impl<'p> Parser<'p> {
         IndexOrIdOrCall::Index(loc, idx) =>
           l = mk_expr(loc, IndexSel { arr: Box::new(l), idx: Box::new(idx) }.into()),
         IndexOrIdOrCall::Id(loc, name) => 
-          l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()),
+          l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft(), func: dft() }.into()),
         IndexOrIdOrCall::Call(loc, arg) => 
           l = mk_expr(loc, Call { func: Box::new(l), arg, func_ref: dft() }.into()),
       }
@@ -465,7 +465,7 @@ impl<'p> Parser<'p> {
         IndexOrIdOrCall::Index(loc, idx) =>
           l = mk_expr(loc, IndexSel { arr: Box::new(l), idx: Box::new(idx) }.into()),
         IndexOrIdOrCall::Id(loc, name) => 
-          l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft() }.into()),
+          l = mk_expr(loc, VarSel { owner: Some(Box::new(l)), name, var: dft(), func: dft() }.into()),
         IndexOrIdOrCall::Call(loc, arg) => 
           l = mk_expr(loc, Call { func: Box::new(l), arg, func_ref: dft() }.into()),
       }
@@ -512,7 +512,7 @@ impl<'p> Parser<'p> {
   }
   #[rule(Expr9 -> Id)]
   fn expr9_id_or_call(name: Token) -> Expr<'p> {
-    mk_expr(name.loc(), VarSel { owner: None, name: name.str(), var: dft() }.into())
+    mk_expr(name.loc(), VarSel { owner: None, name: name.str(), var: dft(), func: dft() }.into())
   }
   #[rule(Expr9 -> New NewClassOrArray)]
   fn expr9_new(n: Token, noa: NewClassOrArray<'p>) -> Expr<'p> {
