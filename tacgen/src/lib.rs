@@ -31,9 +31,7 @@ impl<'a> TacGen<'a> {
       self.define_str(c.name);
       self.resolve_field(c);
       self.class_info.get_mut(&Ref(c)).unwrap().idx = idx as u32;
-      if !c.abstract_ {
-        tp.func.push(self.build_new(c, alloc));
-      }
+      tp.func.push(self.build_new(c, alloc));
     }
     {
       let mut idx = tp.func.len() as u32; // their are already some `_Xxx_New` functions in tp.func
