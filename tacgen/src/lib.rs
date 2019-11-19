@@ -19,6 +19,11 @@ struct TacGen<'a> {
   var_info: HashMap<Ref<'a, VarDef<'a>>, VarInfo>,
   func_info: HashMap<Ref<'a, FuncDef<'a>>, FuncInfo>,
   class_info: HashMap<Ref<'a, ClassDef<'a>>, ClassInfo<'a>>,
+  // current lambda index
+  cur_lambda_idx: u32,
+  cur_alloc: Option<&'a Arena<TacNode<'a>>>,
+  in_lambda: bool,
+  lambda_func: Vec<TacFunc<'a>>,
 }
 
 pub fn work<'a>(p: &'a Program<'a>, alloc: &'a Arena<TacNode<'a>>) -> TacProgram<'a> {
@@ -27,6 +32,8 @@ pub fn work<'a>(p: &'a Program<'a>, alloc: &'a Arena<TacNode<'a>>) -> TacProgram
 
 impl<'a> TacGen<'a> {
   fn program(mut self, p: &Program<'a>, alloc: &'a Arena<TacNode<'a>>) -> TacProgram<'a> {
+    self.cur_alloc = Some(alloc);
+
     let mut tp = TacProgram::default();
     for (idx, &c) in p.class.iter().enumerate() {
       self.define_str(c.name);
@@ -47,6 +54,7 @@ impl<'a> TacGen<'a> {
           }
         }
       }
+      self.cur_lambda_idx = idx;
     }
     for &c in &p.class {
       for f in &c.field {
@@ -59,7 +67,7 @@ impl<'a> TacGen<'a> {
           // even for static functions, a dummy param is passed
           let this = 1;
           for (idx, p) in fu.param.iter().enumerate() {
-            self.var_info.insert(Ref(p), VarInfo { off: idx as u32 + this });
+            self.var_info.insert(Ref(p), VarInfo { off: idx as u32 + this, captured: false });
           }
           // these regs are occupied by parameters
           self.reg_num = fu.param.len() as u32 + this;
@@ -76,6 +84,8 @@ impl<'a> TacGen<'a> {
         }
       }
     }
+    tp.func.append(&mut self.lambda_func);
+
     for &c in &p.class {
       let func = if c.abstract_ {
         vec![]
@@ -105,7 +115,7 @@ impl<'a> TacGen<'a> {
       }
       LocalVarDef(v) => {
         let reg = self.reg();
-        self.var_info.insert(Ref(v), VarInfo { off: reg });
+        self.var_info.insert(Ref(v), VarInfo { off: reg, captured: false });
         let init = v.init.as_ref().map(|(_, e)| self.expr(e, f)).unwrap_or(Const(0));
         f.push(Tac::Assign { dst: reg, src: [init] });
       }
@@ -195,13 +205,22 @@ impl<'a> TacGen<'a> {
     match &e.kind {
       VarSel(v) => Reg({
         if let Some(var) = v.var.get() {
-          let off = self.var_info[&Ref(var)].off; // may be register id or offset in class
+          let mut off = self.var_info[&Ref(var)].off; // may be register id or offset in class
+          let captured = self.var_info[&Ref(var)].captured;
+
           match var.owner.get().unwrap() {
-            ScopeOwner::Lambda(_) => unimplemented!(),
-            ScopeOwner::Local(_,_) | ScopeOwner::Param(_) => if let Some(src) = assign { // off is register
-              // don't care this return, the below 0 is the same
-              (f.push(Tac::Assign { dst: off, src: [src] }), 0).1
-            } else { off }
+            ScopeOwner::Lambda(_) | ScopeOwner::Local(_,_) | ScopeOwner::Param(_) => {
+              if captured {
+                let temp = self.reg();
+                // `this` is the closure
+                f.push(Load { dst: temp, base: [Reg(0)], off: off as i32 * INT_SIZE, hint: MemHint::Immutable });
+                off = temp;
+              }
+              if let Some(src) = assign { // off is register
+                // don't care this return, the below 0 is the same
+                (f.push(Tac::Assign { dst: off, src: [src] }), 0).1
+              } else { off }
+            }
             ScopeOwner::Class(_) => { // off is offset
               // `this` is at argument 0
               let owner = v.owner.as_ref().map(|o| self.expr(o, f)).unwrap_or(Reg(0));
@@ -375,7 +394,62 @@ impl<'a> TacGen<'a> {
         f.push(Label { label: ok });
         obj
       }
-      Lambda(_) => unimplemented!(),
+      Lambda(l) => {
+        // func pointer
+        f.push(Param { src: [Const(8)] });
+        let addr = self.intrinsic(_Alloc, f).unwrap();
+
+        // create lambda function
+        let idx = self.cur_lambda_idx;
+        self.cur_lambda_idx += 1;
+        let name = format!("_lambda_{}_{}", l.loc.0, l.loc.1);
+
+        let cur_var_info = self.var_info.clone();
+
+        // capture all vars into `this`
+        f.push(Param { src: [Const(self.var_info.len() as i32 * INT_SIZE)] });
+        let this = self.intrinsic(_Alloc, f).unwrap();
+        let temp = self.reg();
+        for (i, (def, info)) in self.var_info.iter_mut().enumerate() {
+          // local var
+          f.push(Tac::Assign { dst: temp, src: [Reg(info.off)]});
+          f.push(Store { src_base: [Reg(temp), Reg(this)], off: i as i32 * INT_SIZE as i32, hint: MemHint::Immutable });
+          info.captured = true;
+        }
+
+        // save
+        let cur_reg_num = self.reg_num;
+        let cur_in_lambda = self.in_lambda;
+        self.reg_num = l.param.len() as u32 + 1;
+        self.in_lambda = true;
+        let mut new_f = TacFunc::empty(self.cur_alloc.unwrap(), name.clone(), l.param.len() as u32 + 1);
+
+        // skip 'this' param
+        for (idx, p) in l.param.iter().enumerate() {
+          self.var_info.insert(Ref(p), VarInfo { off: idx as u32 + 1, captured: false });
+        }
+        match &l.body {
+          LambdaBody::Block(b) => self.block(b, &mut new_f),
+          LambdaBody::Expr((e, _scope)) => {
+            let ret = self.expr(e, &mut new_f);
+            new_f.push(Ret { src: Some([ret]) });
+          },
+        }
+        new_f.reg_num = self.reg_num;
+
+        // restore
+        self.var_info = cur_var_info;
+        self.in_lambda = cur_in_lambda;
+        self.reg_num = cur_reg_num;
+        self.lambda_func.push(new_f);
+
+        let temp = self.reg();
+        f.push(LoadFunc { dst: temp, f: idx });
+        f.push(Store { src_base: [Reg(temp), Reg(addr)], off: 0, hint: MemHint::Immutable });
+        f.push(Store { src_base: [Reg(this), Reg(addr)], off: 4, hint: MemHint::Immutable });
+
+        Reg(addr)
+      },
     }
   }
 }
@@ -468,7 +542,7 @@ impl<'a> TacGen<'a> {
             self.func_info.insert(Ref(f), FuncInfo { off: 0, idx: 0 });
           }
           FieldDef::VarDef(v) => {
-            self.var_info.insert(Ref(v), VarInfo { off: field_cnt });
+            self.var_info.insert(Ref(v), VarInfo { off: field_cnt, captured: false });
             field_cnt += 1;
           }
         }

@@ -3,10 +3,12 @@ use common::IndexMap;
 
 // these structs are used in tacgen to keep some intermediate information
 
+#[derive(Clone)]
 pub struct VarInfo {
   // for a VarDef in class, it is the offset in object pointer
   // for a VarDef in function, it is the virtual register number
   pub off: u32,
+  pub captured: bool,
 }
 
 pub struct FuncInfo {
