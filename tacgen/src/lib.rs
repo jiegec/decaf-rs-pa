@@ -2,7 +2,7 @@ mod info;
 
 use syntax::{ast::*, ty::*, ScopeOwner};
 use ::tac::{*, self, TacKind, TacKind::*, Operand::*, Intrinsic::*};
-use common::{Ref, MAIN_METHOD, BinOp::*, UnOp::*, IndexSet, IndexMap, HashMap, BinOp};
+use common::{Ref, MAIN_METHOD, BinOp::*, UnOp::*, IndexSet, IndexMap, HashMap};
 use typed_arena::Arena;
 use crate::info::*;
 
@@ -54,7 +54,9 @@ impl<'a> TacGen<'a> {
             // do not generate code for abstract function
             continue;
           }
-          let this = if fu.static_ { 0 } else { 1 };
+          // skip 'this' param
+          // even for static functions, a dummy param is passed
+          let this = 1;
           for (idx, p) in fu.param.iter().enumerate() {
             self.var_info.insert(Ref(p), VarInfo { off: idx as u32 + this });
           }
@@ -195,7 +197,6 @@ impl<'a> TacGen<'a> {
     match &e.kind {
       VarSel(v) => Reg({
         if let Some(var) = v.var.get() {
-          let var = v.var.get().unwrap();
           let off = self.var_info[&Ref(var)].off;
           match var.owner.get().unwrap() {
             ScopeOwner::Lambda(_) => unimplemented!(),
@@ -217,16 +218,27 @@ impl<'a> TacGen<'a> {
             ScopeOwner::Global(_) => unreachable!("Impossible to declare a variable in global scope."),
           }
         } else if let Some(func) = v.func.get() {
-          let owner = v.owner.as_ref().map(|o| self.expr(o, f)).unwrap_or(Reg(0));
+          // func pointer:
+          // struct FuncPtr {
+          //   fn: fn(),
+          //   self: *mut (),
+          // }
           f.push(Param { src: [Const(8)] });
           let addr = self.intrinsic(_Alloc, f).unwrap();
+          if func.static_ {
+            let idx = self.func_info[&Ref(func)].idx;
+            f.push(Store { src_base: [Const(idx as i32), Reg(addr)], off: 0, hint: MemHint::Immutable });
+            f.push(Store { src_base: [Const(0), Reg(addr)], off: 4, hint: MemHint::Immutable });
+          } else {
+            let owner = v.owner.as_ref().map(|o| self.expr(o, f)).unwrap_or(Reg(0));
 
-          let off = self.func_info[&Ref(func)].off;
-          let slot = self.reg();
-          f.push(Load { dst: slot, base: [owner], off: 0, hint: MemHint::Immutable });
-          f.push(Load { dst: slot, base: [Reg(slot)], off: off as i32 * INT_SIZE, hint: MemHint::Immutable });
-          f.push(Store { src_base: [Reg(slot), Reg(addr)], off: 0, hint: MemHint::Immutable });
-          f.push(Store { src_base: [owner, Reg(addr)], off: 4, hint: MemHint::Immutable });
+            let off = self.func_info[&Ref(func)].off;
+            let slot = self.reg();
+            f.push(Load { dst: slot, base: [owner], off: 0, hint: MemHint::Immutable });
+            f.push(Load { dst: slot, base: [Reg(slot)], off: off as i32 * INT_SIZE, hint: MemHint::Immutable });
+            f.push(Store { src_base: [Reg(slot), Reg(addr)], off: 0, hint: MemHint::Immutable });
+            f.push(Store { src_base: [owner, Reg(addr)], off: 4, hint: MemHint::Immutable });
+          }
           addr
         } else {
           unimplemented!()
@@ -283,45 +295,6 @@ impl<'a> TacGen<'a> {
         }
         f.push(TacKind::Call { dst: Some(ret), kind: CallKind::Virtual([Reg(ptr)], hint) });
         Reg(ret)
-        /*
-        let v = if let ExprKind::VarSel(v) = &c.func.kind { v } else { unimplemented!() };
-        Reg(match &v.owner {
-          Some(o) if o.ty.get().is_arr() => {
-            let arr = self.expr(o, f);
-            self.length(arr, f)
-          }
-          _ => {
-            let fu = c.func_ref.get().unwrap();
-            let ret = if fu.ret_ty() != Ty::void() { Some(self.reg()) } else { None };
-            let args = c.arg.iter().map(|a| self.expr(a, f)).collect::<Vec<_>>();
-            let hint = CallHint {
-              arg_obj: c.arg.iter().any(|a| a.ty.get().is_class()) || !fu.static_,
-              arg_arr: c.arg.iter().any(|a| a.ty.get().arr > 0),
-            };
-            if fu.static_ {
-              for a in args {
-                f.push(Param { src: [a] });
-              }
-              f.push(TacKind::Call { dst: ret, kind: CallKind::Static(self.func_info[&Ref(fu)].idx, hint) });
-            } else {
-              let owner = match &v.owner {
-                Some(o) => self.expr(o, f),
-                None => Reg(0), // this(i.owner is not set during typeck)
-              };
-              f.push(Param { src: [owner] });
-              for a in args {
-                f.push(Param { src: [a] });
-              }
-              let slot = self.reg();
-              let off = self.func_info[&Ref(fu)].off;
-              f.push(Load { dst: slot, base: [owner], off: 0, hint: MemHint::Immutable })
-                .push(Load { dst: slot, base: [Reg(slot)], off: off as i32 * INT_SIZE, hint: MemHint::Immutable });
-              f.push(TacKind::Call { dst: ret, kind: CallKind::Virtual([Reg(slot)], hint) });
-            }
-            ret.unwrap_or(0) // if ret is None, the result can't be assigned to others, so 0 will not be used
-          }
-        })
-        */
       }
       Unary(u) => {
         let (r, dst) = (self.expr(&u.r, f), self.reg());
