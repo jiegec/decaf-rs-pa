@@ -276,6 +276,27 @@ impl<'a> TacGen<'a> {
             f.push(Store { src_base: [owner, Reg(addr)], off: 4, hint: MemHint::Immutable });
           }
           addr
+        } else if v.name == "length" {
+          // func pointer
+          f.push(Param { src: [Const(8)] });
+          let addr = self.intrinsic(_Alloc, f).unwrap();
+          let owner = v.owner.as_ref().map(|o| self.expr(o, f)).unwrap_or(Reg(0));
+
+          // create length function
+          let mut new_f = TacFunc::empty(self.cur_alloc.unwrap(), format!("_length_{}_{}", e.loc.0, e.loc.1), 1);
+          // length is at offset -4
+          new_f.push(Load { dst: 1, base: [Reg(0)], off: -4, hint: MemHint::Immutable });
+          new_f.push(Ret { src: Some([Reg(1)]) });
+          new_f.reg_num = 1;
+          let idx = self.cur_lambda_idx;
+          self.cur_lambda_idx += 1;
+          self.lambda_func.push(new_f);
+
+          let temp = self.reg();
+          f.push(LoadFunc { dst: temp, f: idx });
+          f.push(Store { src_base: [Reg(temp), Reg(addr)], off: 0, hint: MemHint::Immutable });
+          f.push(Store { src_base: [owner, Reg(addr)], off: 4, hint: MemHint::Immutable });
+          addr
         } else {
           unimplemented!()
         }
