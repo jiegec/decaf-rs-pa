@@ -368,7 +368,24 @@ impl<'a> TacGen<'a> {
               f.push(Un { op: Not, dst, r: [Reg(dst)] });
             }
             Reg(dst)
-          }
+          },
+          Div | Mod => {
+            let dst = self.reg();
+            let (err, after) = (self.label(), self.label());
+            if let Const(0) = r {
+              f.push(Jmp { label: err });
+            } else if let Const(_) = r {
+              f.push(Bin { op: b.op, dst, lr: [l, r] })
+                .push(Jmp { label: after });
+            } else {
+              f.push(Jif { label: err, z: true, cond: [r] })
+                .push(Bin { op: b.op, dst, lr: [l, r] });
+              f.push(Jmp { label: after });
+            }
+            self.re(DIVISION_BY_ZERO, f.push(Label { label: err }));
+            f.push(Label { label: after });
+            Reg(dst)
+          },
           op => {
             let dst = self.reg();
             f.push(Bin { op, dst, lr: [l, r] });

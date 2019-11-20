@@ -167,6 +167,7 @@ pub const INT_SIZE: i32 = 4;
 
 pub const INDEX_OUT_OF_BOUND: &str = r#"Decaf runtime error: Array subscript out of bounds\n"#;
 pub const NEW_ARR_NEG: &str = r#"Decaf runtime error: Cannot create negative-sized array\n"#;
+pub const DIVISION_BY_ZERO: &str = r#"Decaf runtime error: Division by zero error\n"#;
 pub const BAD_CAST1: &str = r#"Decaf runtime error: "#;
 pub const BAD_CAST2: &str = r#" cannot be cast to "#;
 pub const BAD_CAST3: &str = r#"\n"#;
