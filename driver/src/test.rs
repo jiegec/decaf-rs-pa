@@ -58,12 +58,4 @@ fn main() {
       std::process::exit(1);
     }
   }
- //   eprintln!("{:?}", compile(r#"
- // class Main {
- //  static void f(class Main m) {}
- //  static void main() {
- //    f(Main)  ;
- //  }
- // }
- //   "#, &Alloc::default(), Pa::Pa2.to_cfg() ));
 }
