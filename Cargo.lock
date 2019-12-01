@@ -663,7 +663,7 @@ dependencies = [
 [[package]]
 name = "tacvm"
 version = "0.1.0"
-source = "git+https://github.com/MashPlant/tacvm#b6bfee9a0cbd21c5a0575ba5b869685edd92f755"
+source = "git+https://github.com/MashPlant/tacvm#0234a7b4db4e4d0657743427a4524c7b85b44b69"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "indexmap 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
