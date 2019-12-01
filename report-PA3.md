@@ -50,5 +50,6 @@ struct FuncPtr {
 
 每个 lambda 都要生成一段函数，名为 `_lambda_row_col` ，调用时，先把所有本地的 variable 和 this 复制一份到一块空间，作为 lambda 调用的 this 参数。然后覆盖掉这些 variable 的信息，使得在 lambda 中都通过 this 去找对应的 variable 。这样就实现了闭包，和文档里要求的是一致的，只不过并不是按需 capture ，而是把所有可能涉及的都 capture 了。需要特别处理 lambda 嵌套的一些情况。
 
-## 问题回答
+## 遇到的困难
 
+不难。多了 LoadFunc 的 tac 指令就更简单了。
