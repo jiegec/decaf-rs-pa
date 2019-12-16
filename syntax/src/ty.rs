@@ -57,6 +57,8 @@ impl<'a> Ty<'a> {
     match (self.kind, rhs.kind) {
       (Error, _) | (_, Error) => true,
       (_, Var) => true,
+      // Array is invariant
+      _ if self.arr == rhs.arr && self.arr != 0 => *self == rhs,
       _ => self.arr == rhs.arr && match (self.kind, rhs.kind) {
         (Int, Int) | (Bool, Bool) | (String, String) | (Void, Void) => true,
         (Object(c1), Object(Ref(c2))) => c1.extends(c2),

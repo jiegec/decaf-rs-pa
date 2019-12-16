@@ -215,12 +215,12 @@ impl<'p> Parser<'p> {
   fn field_list0() -> Vec<FieldDef<'p>> { vec![] }
 
   #[rule(FieldDef -> Static Type Id LPar VarDefListOrEmpty RPar Block)]
-  fn filed_def_f1(&self, _s: Token, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Block<'p>) -> FieldDef<'p> {
+  fn field_def_f1(&self, _s: Token, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, body: Block<'p>) -> FieldDef<'p> {
     let (loc, name) = (name.loc(), name.str());
     FieldDef::FuncDef(self.alloc.func.alloc(FuncDef { loc, name, ret, param: param.reversed(), static_: true, abstract_: false, body: Some(body), ret_param_ty: dft(), class: dft(), scope: dft() }))
   }
   #[rule(FieldDef -> Abstract Type Id LPar VarDefListOrEmpty RPar Semi)]
-  fn filed_def_abstract(&self, _a: Token, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, _s: Token) -> FieldDef<'p> {
+  fn field_def_abstract(&self, _a: Token, ret: SynTy<'p>, name: Token, _l: Token, param: Vec<&'p VarDef<'p>>, _r: Token, _s: Token) -> FieldDef<'p> {
     let (loc, name) = (name.loc(), name.str());
     FieldDef::FuncDef(self.alloc.func.alloc(FuncDef { loc, name, ret, param: param.reversed(), static_: false, abstract_: true, body: None, ret_param_ty: dft(), class: dft(), scope: dft() }))
   }
