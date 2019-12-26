@@ -85,7 +85,7 @@ pub fn bin_str(op: &BinOp) -> &'static str {
     BinOp::Sub => "i32.sub",
     BinOp::Mul => "i32.mul",
     BinOp::Div => "i32.div_s",
-    BinOp::Mod => "i32.mod",
+    BinOp::Mod => "i32.rem_s",
     BinOp::And => "i32.and",
     BinOp::Or => "i32.or",
     BinOp::Eq => "i32.eq",
@@ -100,6 +100,6 @@ pub fn bin_str(op: &BinOp) -> &'static str {
 pub fn un_str(op: &UnOp) -> &'static str {
   match op {
     UnOp::Neg => "i32.sub (i32.const 0)",
-    UnOp::Not => "i32.not",
+    UnOp::Not => "i32.eqz",
   }
 }
