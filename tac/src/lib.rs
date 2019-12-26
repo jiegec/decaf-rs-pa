@@ -94,7 +94,7 @@ impl Tac {
       Bin { dst, lr, .. } => (lr, Some(*dst)),
       Un { dst, r, .. } | Assign { dst, src: r } | Load { dst, base: r, .. } => (r, Some(*dst)),
       Param { src } => (src, None),
-      Call { dst, kind } => (if let CallKind::Virtual(fp, _) = kind { fp } else { &[] }, *dst),
+      Call { dst, kind } => (if let CallKind::Virtual(fp, _, _) = kind { fp } else { &[] }, *dst),
       Ret { src } => (src.as_ref().map(|src| src.as_ref()).unwrap_or(&[]), None),
       Jmp { .. } | Label { .. } => (&[], None),
       Jif { cond, .. } => (cond, None),
@@ -112,7 +112,7 @@ impl Tac {
       Un { dst, r, .. } | Assign { dst, src: r } | Load { dst, base: r, .. } => (r, Some(dst)),
       Param { src } => (src, None),
       Call { dst, kind } =>
-        (if let CallKind::Virtual(fp, _) = kind { fp } else { &mut [] }, dst.as_mut()),
+        (if let CallKind::Virtual(fp, _, _) = kind { fp } else { &mut [] }, dst.as_mut()),
       Ret { src } => (src.as_mut().map(|src| src.as_mut()).unwrap_or(&mut []), None),
       Jmp { .. } | Label { .. } => (&mut [], None),
       Jif { cond, .. } => (cond, None),
@@ -124,7 +124,7 @@ impl Tac {
 
 #[derive(Copy, Clone)]
 pub enum CallKind {
-  Virtual([Operand; 1], CallHint),
+  Virtual([Operand; 1], usize /* args len */, CallHint),
   // the index of func in TacProgram, can be static OR NEW
   Static(u32, CallHint),
   Intrinsic(Intrinsic),

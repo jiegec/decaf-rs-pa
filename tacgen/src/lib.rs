@@ -343,6 +343,7 @@ impl<'a> TacGen<'a> {
 
         let ret = self.reg();
         let args = c.arg.iter().map(|a| self.expr(a, f)).collect::<Vec<_>>();
+        let args_len = args.len() + 1;
         let hint = CallHint {
           arg_obj: c.arg.iter().any(|a| a.ty.get().is_class()),
           arg_arr: c.arg.iter().any(|a| a.ty.get().arr > 0),
@@ -351,7 +352,7 @@ impl<'a> TacGen<'a> {
         for a in args {
           f.push(Param { src: [a] });
         }
-        f.push(Tac::Call { dst: Some(ret), kind: CallKind::Virtual([Reg(ptr)], hint) });
+        f.push(Tac::Call { dst: Some(ret), kind: CallKind::Virtual([Reg(ptr)], args_len, hint) });
         Reg(ret)
       }
       Unary(u) => {

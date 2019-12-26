@@ -1,5 +1,7 @@
 pub mod mips;
 pub mod mips_gen;
+pub mod wast;
+pub mod wast_gen;
 pub mod graph_alloc;
 pub mod brute_alloc;
 
