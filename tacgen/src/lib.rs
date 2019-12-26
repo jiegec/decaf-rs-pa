@@ -288,7 +288,7 @@ impl<'a> TacGen<'a> {
           // length is at offset -4
           new_f.push(Load { dst: 1, base: [Reg(0)], off: -4, hint: MemHint::Immutable });
           new_f.push(Ret { src: Some([Reg(1)]) });
-          new_f.reg_num = 1;
+          new_f.reg_num = 2;
           let idx = self.cur_lambda_idx;
           self.cur_lambda_idx += 1;
           self.lambda_func.push(new_f);
