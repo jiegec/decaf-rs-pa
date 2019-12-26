@@ -103,7 +103,6 @@ pub fn data(pr: &TacProgram, p: &mut IndentPrinter) {
     for v in &pr.vtbl {
       for &f in &v.func {
         write!(p, "${}", pr.func[f as usize].name).ignore();
-        table_offset += 1;
       }
     }
     for f in &pr.func {
