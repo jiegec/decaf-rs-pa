@@ -1,14 +1,8 @@
-use crate::{graph_alloc::*, wast::{*, Reg}, AllocMethod};
-use tacopt::{bb::{FuncBB, NextKind}, flow::{Flow, Or, FlowElem}};
-use tac::{Tac, TacProgram, Operand, CallKind, Intrinsic};
-use common::{HashSet, HashMap, BinOp};
-use bitset::traits::*;
+use crate::{wast::*, AllocMethod};
+use tacopt::{bb::{FuncBB, NextKind}};
+use tac::{Tac, TacProgram, CallKind};
 
 pub struct FuncGen<'a, 'b> {
-  pub(crate) param_num: u32,
-  pub(crate) max_reg: u32,
-  // for functions that this function calls
-  pub(crate) max_param: u32,
   pub(crate) name: &'b str,
   pub(crate) program: &'b TacProgram<'a>,
   // we do need to insert in the SomeContainer<AsmTemplate>, but rust's LinkedList's api is so limited
@@ -17,8 +11,8 @@ pub struct FuncGen<'a, 'b> {
 }
 
 impl<'a: 'b, 'b> FuncGen<'a, 'b> {
-  pub fn work(f: &FuncBB<'a>, p: &'b TacProgram<'a>, m: AllocMethod) -> (usize, Vec<AsmTemplate>) {
-    let mut fu = FuncGen { param_num: f.param_num, max_reg: f.reg_num, max_param: 0, name: &f.name, program: p, bb: Vec::new() };
+  pub fn work(f: &FuncBB<'a>, p: &'b TacProgram<'a>, _m: AllocMethod) -> (usize, Vec<AsmTemplate>) {
+    let mut fu = FuncGen { name: &f.name, program: p, bb: Vec::new() };
     fu.populate(f);
 
     (fu.bb.len(), fu.bb.into_iter()
@@ -44,7 +38,7 @@ impl<'a: 'b, 'b> FuncGen<'a, 'b> {
 }
 
 impl FuncGen<'_, '_> {
-  fn select_inst(&mut self, t: Tac, b: &mut Vec<AsmTemplate>, arg_cnt: &mut u32) {
+  fn select_inst(&mut self, t: Tac, b: &mut Vec<AsmTemplate>, _arg_cnt: &mut u32) {
     use AsmTemplate::*;
     match t {
       Tac::Bin { op, dst, lr } => {
@@ -85,7 +79,7 @@ impl FuncGen<'_, '_> {
 
   // epilogue is the index of epilogue bb
   // note that all jump target should inc by 1, because prologue takes index 0
-  fn build_next(&mut self, idx: u32, epilogue: u32, next: NextKind, b: &mut Vec<AsmTemplate>) -> [Option<u32>; 2] {
+  fn build_next(&mut self, _idx: u32, epilogue: u32, next: NextKind, b: &mut Vec<AsmTemplate>) -> [Option<u32>; 2] {
     match next {
       // turn ret into jmp to the last bb(epilogue)
       NextKind::Ret(src) => {

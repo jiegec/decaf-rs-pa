@@ -1,6 +1,6 @@
-use common::{BinOp, IgnoreResult, UnOp};
+use common::{BinOp, UnOp};
 use std::fmt;
-use tac::{Operand, CallKind, Intrinsic};
+use tac::{Operand, Intrinsic};
 
 pub type Reg = u32;
 type Imm = i32;

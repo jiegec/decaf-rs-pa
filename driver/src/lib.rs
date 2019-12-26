@@ -6,14 +6,14 @@ use common::{IndentPrinter, Errors};
 use syntax::{ASTAlloc, Ty, parser, parser_ll};
 use typeck::TypeCkAlloc;
 use tacopt::bb::FuncBB;
-use codegen::mips_gen::FuncGen;
+use codegen::{mips_gen, wast_gen};
 use tac::TacNode;
 use typed_arena::Arena;
 
 pub use test_util::*;
 
 #[derive(Eq, PartialEq, Copy, Clone)]
-pub enum Stage { Parse, TypeCk, Tac, TacOpt, Asm }
+pub enum Stage { Parse, TypeCk, Tac, TacOpt, Asm, AsmWast }
 
 #[derive(Copy, Clone)]
 pub enum Parser { LL, LR }
@@ -56,14 +56,20 @@ pub fn compile<'a>(code: &'a str, alloc: &'a Alloc<'a>, cfg: CompileCfg) -> Resu
   if cfg.stage == Stage::Asm {
     print::mips::data(&tp, &mut p);
   }
+  if cfg.stage == Stage::AsmWast {
+    print::wast::data(&tp, &mut p);
+  }
   let mut new_funcs = Vec::new();
   for f in &tp.func {
     // it is okay to unwrap because in typeck we guarantee "f's return type is not void and control flow can reaches end of function" won't happen
     let mut fu = FuncBB::new(f);
     fu.optimizen(10);
     if cfg.stage == Stage::Asm {
-      let asm = FuncGen::work(&fu, &tp, codegen::AllocMethod::Graph);
+      let asm = mips_gen::FuncGen::work(&fu, &tp, codegen::AllocMethod::Graph);
       print::mips::func(&asm, &f.name, &mut p);
+    } else if cfg.stage == Stage::AsmWast {
+      let asm = wast_gen::FuncGen::work(&fu, &tp, codegen::AllocMethod::Graph);
+      print::wast::func(&asm, &f.name, &mut p, &f);
     } else { // cfg.stage == Stage::TacOpt
       new_funcs.push(fu.to_tac_func());
     }
@@ -72,5 +78,13 @@ pub fn compile<'a>(code: &'a str, alloc: &'a Alloc<'a>, cfg: CompileCfg) -> Resu
     tp.func = new_funcs;
     print::tac::program(&tp, &mut p);
     Ok(p.finish())
-  } else { Ok(p.finish() + include_str!("../../codegen/lib.s")) }
+  } else {
+    if cfg.stage == Stage::Asm {
+      // mips
+      Ok(p.finish() + include_str!("../../codegen/lib.s")) 
+    } else {
+      // wast
+      Ok(p.finish() + include_str!("../../codegen/lib.wast")) 
+    }
+  }
 }
