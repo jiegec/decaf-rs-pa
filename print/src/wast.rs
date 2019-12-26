@@ -29,7 +29,7 @@ pub fn data(pr: &TacProgram, p: &mut IndentPrinter) {
   write!(p, "(module").ignore();
   p.inc();
   write!(p, "(import \"wasi_unstable\" \"fd_write\" (func $fd_write (param i32 i32 i32 i32) (result i32)))").ignore();
-  write!(p, "(memory 1)").ignore();
+  write!(p, "(memory 128)").ignore();
   write!(p, "(global $trampoline (mut i32) (i32.const 0)) ;; Trampoline").ignore();
   write!(p, "(export \"memory\" (memory 0))").ignore();
 
