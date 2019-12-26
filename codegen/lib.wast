@@ -78,7 +78,7 @@
         )
 
     (func $_start
-        (drop (call $main)))
+        (drop (call $main (i32.const 0))))
     (export "_start" (func $_start))
     (export "main" (func $_start))
     )

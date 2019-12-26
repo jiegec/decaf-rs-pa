@@ -115,7 +115,7 @@ pub fn data(pr: &TacProgram, p: &mut IndentPrinter) {
 pub fn func(f: &(usize, Vec<AsmTemplate>), name: &str, p: &mut IndentPrinter, fun: &TacFunc) {
   let (bb_count, f) = f;
 
-  let mut func_declaration = format!("(func ${:?} (", name);
+  let mut func_declaration = format!("(func ${} (", name);
   if fun.param_num > 0 {
     func_declaration.push_str("param");
     for _ in 0..fun.param_num {
@@ -139,16 +139,16 @@ pub fn func(f: &(usize, Vec<AsmTemplate>), name: &str, p: &mut IndentPrinter, fu
 
     write!(p, "(set_global $trampoline (i32.const 0))").ignore();
     if *bb_count > 0 {
-      write!(p, "(loop ${:?}_T", name).ignore();
+      write!(p, "(loop ${}_T", name).ignore();
       p.inc();
       for i in (0..*bb_count).rev() {
-        write!(p, "(block ${:?}_L{}", name, i).ignore();
+        write!(p, "(block ${}_L{}", name, i).ignore();
       }
       p.indent(|p| {
         let mut table = String::new();
         table.push_str("(br_table");
         for i in 0..*bb_count {
-          table.push_str(&format!(" ${:?}_L{}", name, i));
+          table.push_str(&format!(" ${}_L{}", name, i));
         }
         write!(p, "{} (get_global $trampoline))", table).ignore();
         write!(p, ") ;; label ${:?}_L0", name).ignore();
