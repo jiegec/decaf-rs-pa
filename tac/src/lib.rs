@@ -29,7 +29,8 @@ pub struct TacFunc<'a> {
   pub first: Option<&'a TacNode<'a>>,
   pub last: Option<&'a TacNode<'a>>,
   pub alloc: &'a Arena<TacNode<'a>>,
-  pub name: String,}
+  pub name: String,
+}
 
 impl<'a> TacFunc<'a> {
   pub fn empty(alloc: &'a Arena<TacNode<'a>>, name: String, param_num: u32) -> TacFunc<'a> {

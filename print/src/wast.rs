@@ -102,12 +102,22 @@ pub fn data(pr: &TacProgram, p: &mut IndentPrinter) {
   p.indent(|p| {
     for v in &pr.vtbl {
       for &f in &v.func {
-        write!(p, "${:?}", pr.func[f as usize].name).ignore();
-        offset += 4;
+        write!(p, "${}", pr.func[f as usize].name).ignore();
+        table_offset += 1;
       }
+    }
+    for f in &pr.func {
+      write!(p, "${}", f.name).ignore();
     }
   });
   write!(p, "))").ignore();
+
+  // All functions
+  for f in &pr.func {
+    write!(p, "(func $_FUNC{} (result i32)", f.name).ignore();
+    p.indent(|p| write!(p, "(i32.const {}))", table_offset).ignore());
+    table_offset += 1;
+  }
   
   writeln!(p).ignore();
 }

@@ -24,7 +24,7 @@ impl<'a: 'b, 'b> FuncGen<'a, 'b> {
     for (idx, b1) in f.bb.iter().enumerate() {
       let mut b2 = Vec::new();
       if idx > 0 {
-        b2.push(AsmTemplate::Label(format!("{:?}_L{}:", self.name, idx)));
+        b2.push(AsmTemplate::Label(format!("{}_L{}:", self.name, idx)));
       }
       let mut arg_cnt = 0;
       for t in b1.iter() {
@@ -57,7 +57,7 @@ impl FuncGen<'_, '_> {
             b.push(CallVirtual(dst, args_len, r[0]));
           }
           CallKind::Static(f, _) => {
-            b.push(CallStatic(dst, format!("{:?}", self.program.func[f as usize].name)));
+            b.push(CallStatic(dst, format!("{}", self.program.func[f as usize].name)));
           }
           CallKind::Intrinsic(i)  => {
             b.push(CallStatic(dst, format!("{:?}", i)));
@@ -72,7 +72,7 @@ impl FuncGen<'_, '_> {
       }
       Tac::LoadStr { dst, s } => b.push(La(dst, format!("_STRING{}", s))),
       Tac::LoadVTbl { dst, v } => b.push(La(dst, format!("_{}", self.program.vtbl[v as usize].class))),
-      Tac::LoadFunc { dst, f } => b.push(La(dst, self.program.func[f as usize].name.clone())),
+      Tac::LoadFunc { dst, f } => b.push(La(dst, format!("_FUNC{}", self.program.func[f as usize].name.clone()))),
       Tac::Label { .. } | Tac::Ret { .. } | Tac::Jmp { .. } | Tac::Jif { .. } => unreachable!("Shouldn't meet Ret/Jmp/Jif/Label in a tac bb."),
     }
   }
@@ -87,11 +87,11 @@ impl FuncGen<'_, '_> {
         [Some(epilogue), None]
       }
       NextKind::Jmp(jump) => {
-        b.push(AsmTemplate::Jmp(format!("{:?}_T", self.name), jump));
+        b.push(AsmTemplate::Jmp(format!("{}_T", self.name), jump));
         [Some(jump), None]
       }
       NextKind::Jif { cond, z, fail, jump } => {
-        b.push(AsmTemplate::Jif(format!("{:?}_T", self.name), jump, cond, z));
+        b.push(AsmTemplate::Jif(format!("{}_T", self.name), jump, cond, z));
         [Some(fail), Some(jump)]
       }
       NextKind::Halt => {
