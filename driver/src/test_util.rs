@@ -78,7 +78,7 @@ pub fn run(i: impl AsRef<Path>, o: impl AsRef<Path>, pa: Pa) -> io::Result<Strin
       Stage::Parse | Stage::TypeCk => (fs::write(o, &p), p).1,
       Stage::Tac | Stage::TacOpt => {
         fs::write(o.with_extension("tac"), &p)?;
-        tacvm::work(&p, 100_000, 1000, true, true,
+        tacvm::work(&p, 10_000_000, 1000, true, true,
                     Box::new(BufReader::new(io::stdin())),
                     Box::new(File::create(&o)?),
                     Box::new(File::create(o.with_extension("info"))?),

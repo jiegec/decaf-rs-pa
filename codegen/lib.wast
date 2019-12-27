@@ -9,6 +9,23 @@
         (get_local 1)
         )
 
+    ;; String Compare
+    (func $_StringEqual (param i32 i32) (result i32)
+        ;; *p1 *p2
+        (local i32 i32)
+        (loop (result i32)
+            (set_local 2 (i32.load (get_local 0)))
+            (set_local 3 (i32.load (get_local 1)))
+            (if (i32.ne (get_local 2) (get_local 3))
+                (then (return (i32.const 0))))
+            (if (i32.eq (get_local 2) (i32.const 0))
+                (then (return (i32.const 1))))
+            (set_local 0 (i32.add (get_local 0) (i32.const 1)))
+            (set_local 1 (i32.add (get_local 1) (i32.const 1)))
+            (br 0)
+            )
+        )
+
     ;; Below print functions use WASI fd_write
     (func $_PrintString (param i32) (result i32)
         (local i32 i32) ;; iov, len

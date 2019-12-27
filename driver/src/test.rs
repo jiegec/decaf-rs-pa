@@ -58,6 +58,20 @@ fn main() {
       std::process::exit(1);
     }
   }
+  for result in test_all("testcase/S4", Pa::Pa4).unwrap() {
+    println!("{:?}", result);
+    if let ResultKind::Pass = result.kind {
+    } else {
+      std::process::exit(1);
+    }
+  }
+  for result in test_all("testcase/S3", Pa::Pa5Wast).unwrap() {
+    println!("{:?}", result);
+    if let ResultKind::Pass = result.kind {
+    } else {
+      std::process::exit(1);
+    }
+  }
   for result in test_all("testcase/S4", Pa::Pa5Wast).unwrap() {
     println!("{:?}", result);
     if let ResultKind::Pass = result.kind {

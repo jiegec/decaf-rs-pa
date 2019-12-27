@@ -30,7 +30,6 @@ pub fn data(pr: &TacProgram, p: &mut IndentPrinter) {
   p.inc();
   write!(p, "(import \"wasi_unstable\" \"fd_write\" (func $fd_write (param i32 i32 i32 i32) (result i32)))").ignore();
   write!(p, "(memory 128)").ignore();
-  write!(p, "(global $trampoline (mut i32) (i32.const 0)) ;; Trampoline").ignore();
   write!(p, "(export \"memory\" (memory 0))").ignore();
 
   let mut offsets = Vec::new();
@@ -145,8 +144,9 @@ pub fn func(f: &(usize, Vec<AsmTemplate>), name: &str, p: &mut IndentPrinter, fu
       locals.push_str(")");
       write!(p, "{}", locals).ignore();
     }
+    write!(p, "(local $trampoline i32)").ignore();
 
-    write!(p, "(set_global $trampoline (i32.const 0))").ignore();
+    write!(p, "(set_local $trampoline (i32.const 0))").ignore();
     if *bb_count > 0 {
       write!(p, "(loop ${}_T", name).ignore();
       p.inc();
@@ -159,7 +159,7 @@ pub fn func(f: &(usize, Vec<AsmTemplate>), name: &str, p: &mut IndentPrinter, fu
         for i in 0..*bb_count {
           table.push_str(&format!(" ${}_L{}", name, i));
         }
-        write!(p, "{} (get_global $trampoline))", table).ignore();
+        write!(p, "{} (get_local $trampoline))", table).ignore();
         write!(p, ") ;; label ${:?}_L0", name).ignore();
       });
       p.inc();
